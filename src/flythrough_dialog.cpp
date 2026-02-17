@@ -7,6 +7,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPointer>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <qgsmaplayercombobox.h>
