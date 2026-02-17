@@ -1,0 +1,71 @@
+name: Build QGIS Plugin
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # --- Linux Setup ---
+    - name: Install Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          qgis-dev \
+          qtbase5-dev \
+          qttools5-dev \
+          libqt5svg5-dev \
+          qt5-default \
+          cmake \
+          build-essential
+
+    # --- Windows Setup ---
+    - name: Install Qt (Windows)
+      if: runner.os == 'Windows'
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'
+
+    - name: Install QGIS Dependencies (Windows)
+      if: runner.os == 'Windows'
+      # Note: Setting up QGIS dev on Windows in CI is complex. 
+      # Usually done via OSGeo4W network installer or pre-cached libs.
+      # For simplicity here, we assume a custom action or skip detailed setup 
+      # in this template, as "qgis-dev" is not a simple apt-get.
+      # A robust way is using a Docker container for Windows build or similar.
+      run: echo "Windows build setup requires advanced OSGeo4W scripting"
+
+    # --- macOS Setup ---
+    - name: Install Dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install qgis
+        brew install qt@5
+        brew link qt@5 --force
+
+    # --- Build Step ---
+    - name: Build
+      run: |
+        mkdir build
+        cd build
+        cmake ..
+        cmake --build . --config Release
+
+    # --- Upload Artifacts ---
+    - name: Upload Plugin
+      uses: actions/upload-artifact@v3
+      with:
+        name: QGIS-Plugin-${{ runner.os }}
+        path: build/libflythrough_pro_cpp.* 
