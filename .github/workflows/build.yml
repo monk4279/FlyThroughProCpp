@@ -54,8 +54,11 @@ jobs:
         echo "Qt5_DIR=$(brew --prefix qt@5)/lib/cmake/Qt5" >> $GITHUB_ENV
         echo "PATH=$(brew --prefix qt@5)/bin:$PATH" >> $GITHUB_ENV
         brew info qgis
-        # Find where the libs actually are
-        find /opt/homebrew -name "libqgis_core*" || true
+        # Debug: Find actual QGIS files
+        echo "Searching for headers..."
+        find /Applications/QGIS.app -name "qgsapplication.h" || true
+        echo "Searching for libs..."
+        find /Applications/QGIS.app -name "qgis_core*" || true
 
     # --- Build Step ---
     - name: Build
