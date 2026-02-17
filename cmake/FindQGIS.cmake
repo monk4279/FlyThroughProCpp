@@ -34,6 +34,10 @@ find_path(QGIS_INCLUDE_DIR NAMES qgsapplication.h
     "$ENV{LIB_DIR}/include"
     "$ENV{QGIS_DIR}/include/qgis"
     "$ENV{QGIS_DIR}/include"
+    "$ENV{OSGEO4W_ROOT}/include"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/include"
+    /opt/homebrew/opt/qgis/include
+    /usr/local/opt/qgis/include
     /Applications/QGIS.app/Contents/Frameworks/qgis_core.framework/Headers
     /Applications/QGIS.app/Contents/Frameworks/qgis_gui.framework/Headers
     /Applications/QGIS-LTR.app/Contents/Frameworks/qgis_core.framework/Headers
