@@ -12,23 +12,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [windows-latest]
  
     steps:
     - uses: actions/checkout@v4
-
-    # --- Linux Setup ---
-    - name: Install Dependencies (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          qgis-dev \
-          qtbase5-dev \
-          qttools5-dev \
-          libqt5svg5-dev \
-          cmake \
-          build-essential
 
     # --- Windows Setup (via Micromamba) ---
     - name: Setup Micromamba (Windows)
@@ -45,32 +32,6 @@ jobs:
           ninja
         init-shell: cmd.exe
 
-    # --- macOS Setup (via Micromamba) ---
-    - name: Setup Micromamba (macOS)
-      if: runner.os == 'macOS'
-      uses: mamba-org/setup-micromamba@v1
-      with:
-        environment-name: qgis-dev
-        create-args: >-
-          qgis
-          qt-main
-          compilers
-          cmake
-          pkg-config
-        init-shell: bash 
-
-    - name: Build (macOS)
-      if: runner.os == 'macOS'
-      shell: bash -l {0}
-      run: |
-        mkdir build
-        cd build
-        cmake .. \
-          -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
-          -DQGIS_DIR=$CONDA_PREFIX \
-          -DQt5_DIR=$CONDA_PREFIX/lib/cmake/Qt5
-        cmake --build . --config Release
-
     # --- Build Step (Windows) ---
     - name: Build (Windows)
       if: runner.os == 'Windows'
@@ -82,18 +43,9 @@ jobs:
         echo cmake --build . --config Release >> build.bat
         micromamba run -n qgis-dev build.bat
 
-    # --- Build Step (Linux) ---
-    - name: Build (Linux)
-      if: runner.os == 'Linux'
-      run: |
-        mkdir build
-        cd build
-        cmake ..
-        cmake --build . --config Release
-
     # --- Upload Artifacts ---
     - name: Upload Plugin
       uses: actions/upload-artifact@v4
       with:
         name: QGIS-Plugin-${{ runner.os }}
-        path: build/libflythrough_pro_cpp.* 
+        path: build/libflythrough_pro_cpp.*
