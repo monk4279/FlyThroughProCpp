@@ -53,6 +53,9 @@ jobs:
         brew link qt@5 --force
         echo "Qt5_DIR=$(brew --prefix qt@5)/lib/cmake/Qt5" >> $GITHUB_ENV
         echo "PATH=$(brew --prefix qt@5)/bin:$PATH" >> $GITHUB_ENV
+        brew info qgis
+        # Find where the libs actually are
+        find /opt/homebrew -name "libqgis_core*" || true
 
     # --- Build Step ---
     - name: Build
