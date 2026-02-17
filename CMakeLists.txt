@@ -12,6 +12,12 @@ set(CMAKE_AUTORCC ON)
 
 # Find QGIS and Qt dependencies
 find_package(Qt5 COMPONENTS Core Gui Widgets Xml Network REQUIRED)
+
+# Conditional: Try to find Qt3D only on non-Windows (or wherever it works)
+if(NOT WIN32)
+    find_package(Qt5 COMPONENTS 3DCore 3DRender 3DInput 3DLogic 3DExtras REQUIRED)
+endif()
+
 find_package(QGIS REQUIRED)
 
 # Includes
@@ -24,6 +30,17 @@ include_directories(
     ${Qt5Network_INCLUDE_DIRS}
     ${QGIS_INCLUDE_DIR}
 )
+
+if(NOT WIN32)
+    include_directories(
+        ${Qt53DCore_INCLUDE_DIRS}
+        ${Qt53DRender_INCLUDE_DIRS}
+        ${Qt53DInput_INCLUDE_DIRS}
+        ${Qt53DLogic_INCLUDE_DIRS}
+        ${Qt53DExtras_INCLUDE_DIRS}
+        ${QGIS_INCLUDE_DIR}/3d
+    )
+endif()
 
 # Source files
 set(SRCS
@@ -42,9 +59,6 @@ set(UIS
     resources/dialog.ui
 )
 
-# Handle UI files
-# qt5_wrap_ui(UI_HDRS ${UIS}) # Uncomment when UI file exists
-
 # Create shared library for the plugin
 add_library(flythrough_pro_cpp SHARED ${SRCS} ${HDRS})
 
@@ -59,8 +73,16 @@ target_link_libraries(flythrough_pro_cpp
     ${QGIS_GUI_LIBRARY}
 )
 
+if(NOT WIN32)
+    target_link_libraries(flythrough_pro_cpp
+        Qt5::3DCore
+        Qt5::3DRender
+        Qt5::3DInput
+        Qt5::3DLogic
+        Qt5::3DExtras
+        ${QGIS_3D_LIBRARY}
+    )
+endif()
+
 # Definitions
 target_compile_definitions(flythrough_pro_cpp PRIVATE FLYTHROUGH_PRO_CPP_LIBRARY)
-
-# Initial metadata file copy (optional)
-# configure_file(metadata.txt ${CMAKE_CURRENT_BINARY_DIR}/metadata.txt COPYONLY)

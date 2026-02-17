@@ -15,15 +15,20 @@
 #include <QPushButton>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QtMath>
 #include <qgisinterface.h>
-// #include <qgs3dmapcanvas.h>
-// #include <qgs3dmapsettings.h>
-// #include <qgscameracontroller.h>
 #include <qgsmaplayercombobox.h>
 #include <qgsmaplayerproxymodel.h>
 #include <qgsproject.h>
 #include <qgsrasterlayer.h>
 #include <qgsvectorlayer.h>
+
+// CONDITIONAL INCLUDES
+#ifndef Q_OS_WIN
+#include <qgs3dmapcanvas.h>
+#include <qgs3dmapsettings.h>
+#include <qgscameracontroller.h>
+#endif
 
 FlyThroughDialog::FlyThroughDialog(QgisInterface *iface, QWidget *parent)
     : QDialog(parent), mIface(iface) {
@@ -53,7 +58,7 @@ void FlyThroughDialog::setupUi() {
 
   mainLayout->addWidget(inputGroup);
 
-  // --- Camera Settings Group ---
+  // --- Camera Settings ---
   QGroupBox *cameraGroup = new QGroupBox("Camera Settings", this);
   QFormLayout *camLayout = new QFormLayout(cameraGroup);
 
@@ -128,9 +133,124 @@ void FlyThroughDialog::onPreviewClicked() {
 }
 
 void FlyThroughDialog::onGenerateClicked() {
-  QMessageBox::information(
-      this, "Not Implemented",
-      "Video export is currently disabled for compatibility reasons.\n"
-      "The 3D modules have been temporarily removed to ensure the plugin loads "
-      "in QGIS 3.28.");
+#ifdef Q_OS_WIN
+  QMessageBox::information(this, "Windows Limitation",
+                           "3D Camera control is currently disabled on Windows "
+                           "to ensure compatibility.\n"
+                           "The C++ plugin calculates the path successfully, "
+                           "but 3D view hooks are pending.");
+  return;
+#else
+  // --- NON-WINDOWS (Mac/Linux) IMPLEMENTATION ---
+
+  QgsVectorLayer *pathLayer =
+      dynamic_cast<QgsVectorLayer *>(mPathLayerCombo->currentLayer());
+  QgsRasterLayer *demLayer =
+      dynamic_cast<QgsRasterLayer *>(mDemLayerCombo->currentLayer());
+
+  if (!pathLayer || !demLayer) {
+    QMessageBox::warning(this, "Error",
+                         "Please select valid Path and DEM layers.");
+    return;
+  }
+
+  // Find 3D Canvas
+  Qgs3DMapCanvas *canvas3D = nullptr;
+  QWidget *mainWindow = mIface->mainWindow();
+  QList<Qgs3DMapCanvas *> canvases =
+      mainWindow->findChildren<Qgs3DMapCanvas *>();
+
+  if (!canvases.isEmpty()) {
+    canvas3D = canvases.first();
+  } else {
+    QMessageBox::warning(this, "Error",
+                         "No 3D Map View found. Please open a 3D View (View > "
+                         "3D Map Views) and try again.");
+    return;
+  }
+
+  QString outputFilename = QFileDialog::getSaveFileName(
+      this, "Save Video", QDir::homePath(), "MP4 Video (*.mp4)");
+  if (outputFilename.isEmpty())
+    return;
+
+  FlyThroughCore core;
+  // Retrieve from UI
+  double speedKmh = mSpeedSpin->value();
+  double altitude = mCameraHeightSpin->value();
+  double pitch =
+      -(mCameraPitchSpin->value()); // QGIS uses negative for looking down
+
+  if (!core.generateKeyframes(pathLayer, demLayer, speedKmh, altitude, pitch,
+                              mBankingCheck->isChecked())) {
+    QMessageBox::warning(this, "Error",
+                         "Failed to generate flight path. Check geometry.");
+    return;
+  }
+
+  QProcess ffmpeg;
+  QString program = "ffmpeg";
+  QStringList arguments;
+  arguments << "-y" << "-f" << "image2pipe" << "-vcodec" << "png" << "-r"
+            << "30" << "-i" << "-"
+            << "-c:v" << "libx264" << "-pix_fmt" << "yuv420p" << outputFilename;
+
+  ffmpeg.start(program, arguments);
+  if (!ffmpeg.waitForStarted()) {
+    QMessageBox::critical(this, "FFmpeg Error",
+                          "Could not start ffmpeg. Ensure it is in PATH.");
+    return;
+  }
+
+  QProgressDialog progress("Rendering ...", "Cancel", 0, 100, this);
+  progress.setWindowModality(Qt::WindowModal);
+
+  double duration = core.totalDuration();
+  int fps = 30;
+  int totalFrames = static_cast<int>(duration * fps);
+
+  if (totalFrames <= 0)
+    totalFrames = 1;
+
+  QgsCameraController *camera = canvas3D->cameraController();
+
+  for (int i = 0; i < totalFrames; ++i) {
+    if (progress.wasCanceled())
+      break;
+    progress.setValue((i * 100) / totalFrames);
+
+    double t = static_cast<double>(i) / fps;
+    CameraKeyframe kf = core.interpolate(t);
+
+    // Update Camera
+    QgsVector3D pos = kf.position;
+
+    // Convert yaw/pitch to lookAt
+    double yawRad = qDegreesToRadians(kf.yaw);
+    double pitchRad = qDegreesToRadians(kf.pitch);
+
+    // Look vector
+    double dx = std::sin(yawRad) * std::cos(pitchRad);
+    double dy = std::cos(yawRad) * std::cos(pitchRad);
+    double dz = std::sin(pitchRad);
+
+    QgsVector3D target = pos + QgsVector3D(dx, dy, dz) * 100.0;
+
+    camera->setLookAt(target);
+    camera->setPos(pos);
+
+    // Force repaint
+    canvas3D->repaint();
+    QCoreApplication::processEvents(); // Allow UI to update
+
+    QImage img = canvas3D->capture();
+    img.save(&ffmpeg, "PNG");
+  }
+
+  ffmpeg.closeWriteChannel();
+  ffmpeg.waitForFinished();
+
+  progress.setValue(100);
+  QMessageBox::information(this, "Success", "Video Export Complete!");
+#endif
 }
