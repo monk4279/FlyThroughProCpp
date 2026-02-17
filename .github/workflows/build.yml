@@ -38,13 +38,6 @@ jobs:
       with:
         version: '5.15.2'
 
-    - name: Install QGIS Dependencies (Windows)
-      if: runner.os == 'Windows'
-      # Note: Setting up QGIS dev on Windows in CI is complex. 
-      # Usually done via OSGeo4W network installer or pre-cached libs.
-      # For simplicity here, we assume a custom action or skip detailed setup 
-      # in this template, as "qgis-dev" is not a simple apt-get.
-      # A robust way is using a Docker container for Windows build or similar.
     - name: Install QGIS Dev (Windows)
       if: runner.os == 'Windows'
       run: |
