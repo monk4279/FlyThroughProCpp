@@ -2,37 +2,31 @@
 #define FLYTHROUGH_PLUGIN_H
 
 #include <QObject>
-#include <qgisplugin.h>
 #include <qgisinterface.h>
+#include <qgisplugin.h>
 
-class FlyThroughPlugin : public QObject
-{
-    Q_OBJECT
+class FlyThroughPlugin : public QObject, public QgisPlugin {
+  Q_OBJECT
 
 public:
-    explicit FlyThroughPlugin(QgisInterface *iface);
-    ~FlyThroughPlugin();
+  explicit FlyThroughPlugin(QgisInterface *iface);
+  ~FlyThroughPlugin() override;
 
-    void initGui();
-    void unload();
+  void initGui() override;
+  void unload() override;
 
 public slots:
-    void run();
+  void run();
 
 private:
-    QgisInterface *mIface = nullptr;
-    QAction *mAction = nullptr;
+  QgisInterface *mIface = nullptr;
+  QAction *mAction = nullptr;
 };
 
 // Standard QGIS plugin entry points
 extern "C" {
-    Q_DECL_EXPORT const QString name();
-    Q_DECL_EXPORT const QString description();
-    Q_DECL_EXPORT const QString version();
-    Q_DECL_EXPORT const QString category();
-    Q_DECL_EXPORT int type();
-    Q_DECL_EXPORT void unload(FlyThroughPlugin* plugin);
-    Q_DECL_EXPORT FlyThroughPlugin* classFactory(QgisInterface *iface);
+Q_DECL_EXPORT void unload(FlyThroughPlugin *plugin);
+Q_DECL_EXPORT FlyThroughPlugin *classFactory(QgisInterface *iface);
 }
 
 #endif // FLYTHROUGH_PLUGIN_H
