@@ -31,12 +31,12 @@ void FlyThroughDialog::setupUi() {
   QFormLayout *inputLayout = new QFormLayout(inputGroup);
 
   mDemLayerCombo = new QgsMapLayerComboBox(this);
-  mDemLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer);
+  mDemLayerCombo->setFilters(Qgis::LayerFilter::RasterLayer);
   inputLayout->addRow("DEM Layer:", mDemLayerCombo);
 
   mPathLayerCombo = new QgsMapLayerComboBox(this);
-  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::LineLayer |
-                              QgsMapLayerProxyModel::PointLayer);
+  mPathLayerCombo->setFilters(Qgis::LayerFilter::LineLayer |
+                              Qgis::LayerFilter::PointLayer);
   inputLayout->addRow("Path Layer:", mPathLayerCombo);
 
   mainLayout->addWidget(inputGroup);
