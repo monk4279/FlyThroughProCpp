@@ -57,7 +57,6 @@ target_link_libraries(flythrough_pro_cpp
     Qt5::Network
     ${QGIS_CORE_LIBRARY}
     ${QGIS_GUI_LIBRARY}
-    ${QGIS_3D_LIBRARY}
 )
 
 # Definitions
