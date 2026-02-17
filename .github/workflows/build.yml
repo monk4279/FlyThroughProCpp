@@ -75,6 +75,16 @@ jobs:
           -DQt5_DIR=$CONDA_PREFIX/lib/cmake/Qt5
         cmake --build . --config Release
 
+    # --- Build Step (Windows) ---
+    - name: Build (Windows)
+      if: runner.os == 'Windows'
+      shell: cmd
+      run: |
+        mkdir build
+        cd build
+        cmake .. -DQGIS_DIR="C:/Program Files/QGIS 3.28.3"
+        cmake --build . --config Release
+
     # --- Build Step (Linux) ---
     - name: Build (Linux)
       if: runner.os == 'Linux'
