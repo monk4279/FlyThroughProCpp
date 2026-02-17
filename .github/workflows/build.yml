@@ -41,11 +41,9 @@ jobs:
         echo cd build >> build.bat
         echo cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%%CONDA_PREFIX%%" -DQGIS_DIR="%%CONDA_PREFIX%%" -DQt5_DIR="%%CONDA_PREFIX%%/Library/lib/cmake/Qt5" >> build.bat
         echo cmake --build . --config Release >> build.bat
-        echo cmake --build . --config Release >> build.bat
         micromamba run -n qgis-dev build.bat
-    
-    # --- Debug Dependencies ---
-    - name: Inspect Dependencies (Windows)
+        
+    - name: Inspect Dependencies (Debug Mismatch)
       if: runner.os == 'Windows'
       shell: cmd
       run: |
