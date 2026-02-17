@@ -2,16 +2,28 @@
 #include "flythrough_core.h"
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QDoubleSpinBox>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
+#include <QProcess>
+#include <QProgressDialog>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
+#include <qgisinterface.h>
+#include <qgs3dmapcanvas.h>
+#include <qgs3dmapsettings.h>
+#include <qgscameracontroller.h>
 #include <qgsmaplayercombobox.h>
 #include <qgsmaplayerproxymodel.h>
 #include <qgsproject.h>
+#include <qgsrasterlayer.h>
+#include <qgsvectorlayer.h>
 
 FlyThroughDialog::FlyThroughDialog(QgisInterface *iface, QWidget *parent)
     : QDialog(parent), mIface(iface) {
