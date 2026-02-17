@@ -38,10 +38,13 @@ jobs:
       with:
         version: '5.15.2'
 
-    - name: Install QGIS Dev (Windows)
+    - name: Install QGIS 3.28.3 (Windows)
       if: runner.os == 'Windows'
       run: |
-        choco install qgis-ltr -y
+        choco install qgis -y --version 3.28.3
+        refreshenv
+        echo "Searching for QGIS..."
+        dir "C:\Program Files\QGIS*" /s /b
       shell: cmd
 
     # --- macOS Setup (via Micromamba) ---
