@@ -5,6 +5,11 @@ project(flythrough_pro_cpp)
 # Add module path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# Enable Qt MOC (Meta-Object Compiler)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 # Find QGIS and Qt dependencies
 find_package(Qt5 COMPONENTS Core Gui Widgets Xml Network REQUIRED)
 find_package(QGIS REQUIRED)
