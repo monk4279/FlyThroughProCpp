@@ -26,18 +26,17 @@ void FlyThroughDialog::setupUi() {
 
   QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
-  // --- Inputs Group ---
-  QGroupBox *inputGroup = new QGroupBox("Input Layers", this);
+  // --- Input Layers Group ---
+  QGroupBox *inputGroup = new QGroupBox("Input Data", this);
   QFormLayout *inputLayout = new QFormLayout(inputGroup);
 
-  mDemLayerCombo = new QgsMapLayerComboBox(this);
-  mDemLayerCombo->setFilters(Qgis::LayerFilter::RasterLayer);
-  inputLayout->addRow("DEM Layer:", mDemLayerCombo);
-
   mPathLayerCombo = new QgsMapLayerComboBox(this);
-  mPathLayerCombo->setFilters(Qgis::LayerFilter::LineLayer |
-                              Qgis::LayerFilter::PointLayer);
-  inputLayout->addRow("Path Layer:", mPathLayerCombo);
+  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::LineLayer);
+  inputLayout->addRow("Path Layer (Line):", mPathLayerCombo);
+
+  mDemLayerCombo = new QgsMapLayerComboBox(this);
+  mDemLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer);
+  inputLayout->addRow("DEM Layer (Raster):", mDemLayerCombo);
 
   mainLayout->addWidget(inputGroup);
 
