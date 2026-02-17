@@ -66,7 +66,10 @@ target_link_libraries(flythrough_pro_cpp
 )
 
 # Definitions
-target_compile_definitions(flythrough_pro_cpp PRIVATE FLYTHROUGH_PRO_CPP_LIBRARY)
+target_compile_definitions(flythrough_pro_cpp PRIVATE 
+    FLYTHROUGH_PRO_CPP_LIBRARY
+    _USE_MATH_DEFINES
+)
 
 # Initial metadata file copy (optional)
 # configure_file(metadata.txt ${CMAKE_CURRENT_BINARY_DIR}/metadata.txt COPYONLY)
