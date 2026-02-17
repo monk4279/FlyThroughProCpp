@@ -23,12 +23,10 @@
 #include <qgsrasterlayer.h>
 #include <qgsvectorlayer.h>
 
-// CONDITIONAL INCLUDES
-#ifndef Q_OS_WIN
+// 3D Headers (Enabled for ALL platforms now)
 #include <qgs3dmapcanvas.h>
 #include <qgs3dmapsettings.h>
 #include <qgscameracontroller.h>
-#endif
 
 FlyThroughDialog::FlyThroughDialog(QgisInterface *iface, QWidget *parent)
     : QDialog(parent), mIface(iface) {
@@ -133,16 +131,6 @@ void FlyThroughDialog::onPreviewClicked() {
 }
 
 void FlyThroughDialog::onGenerateClicked() {
-#ifdef Q_OS_WIN
-  QMessageBox::information(this, "Windows Limitation",
-                           "3D Camera control is currently disabled on Windows "
-                           "to ensure compatibility.\n"
-                           "The C++ plugin calculates the path successfully, "
-                           "but 3D view hooks are pending.");
-  return;
-#else
-  // --- NON-WINDOWS (Mac/Linux) IMPLEMENTATION ---
-
   QgsVectorLayer *pathLayer =
       dynamic_cast<QgsVectorLayer *>(mPathLayerCombo->currentLayer());
   QgsRasterLayer *demLayer =
@@ -169,10 +157,10 @@ void FlyThroughDialog::onGenerateClicked() {
     return;
   }
 
-  QString outputFilename = QFileDialog::getSaveFileName(
-      this, "Save Video", QDir::homePath(), "MP4 Video (*.mp4)");
-  if (outputFilename.isEmpty())
-    return;
+  /*
+   * VIDEO EXPORT DISABLED TEMPORARILY
+   * We skip FFmpeg setup to ensure the basic animation works on Windows.
+   */
 
   FlyThroughCore core;
   // Retrieve from UI
@@ -188,21 +176,7 @@ void FlyThroughDialog::onGenerateClicked() {
     return;
   }
 
-  QProcess ffmpeg;
-  QString program = "ffmpeg";
-  QStringList arguments;
-  arguments << "-y" << "-f" << "image2pipe" << "-vcodec" << "png" << "-r"
-            << "30" << "-i" << "-"
-            << "-c:v" << "libx264" << "-pix_fmt" << "yuv420p" << outputFilename;
-
-  ffmpeg.start(program, arguments);
-  if (!ffmpeg.waitForStarted()) {
-    QMessageBox::critical(this, "FFmpeg Error",
-                          "Could not start ffmpeg. Ensure it is in PATH.");
-    return;
-  }
-
-  QProgressDialog progress("Rendering ...", "Cancel", 0, 100, this);
+  QProgressDialog progress("Animating ...", "Cancel", 0, 100, this);
   progress.setWindowModality(Qt::WindowModal);
 
   double duration = core.totalDuration();
@@ -242,15 +216,9 @@ void FlyThroughDialog::onGenerateClicked() {
     // Force repaint
     canvas3D->repaint();
     QCoreApplication::processEvents(); // Allow UI to update
-
-    QImage img = canvas3D->capture();
-    img.save(&ffmpeg, "PNG");
   }
 
-  ffmpeg.closeWriteChannel();
-  ffmpeg.waitForFinished();
-
   progress.setValue(100);
-  QMessageBox::information(this, "Success", "Video Export Complete!");
-#endif
+  QMessageBox::information(this, "Success",
+                           "Flythrough Complete! (Video Export Skipped)");
 }
