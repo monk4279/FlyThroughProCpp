@@ -131,7 +131,7 @@ double FlyThroughCore::getElevation(QgsRasterLayer *dem,
 }
 
 double FlyThroughCore::calculateBearing(const QgsPointXY &p1,
-                                        const QgsPointXY &p2) {
+                                        const QgsPointXY &p2) const {
   double dx = p2.x() - p1.x();
   double dy = p2.y() - p1.y();
   double bearing = qRadiansToDegrees(qAtan2(dx, dy));
@@ -177,7 +177,7 @@ CameraKeyframe FlyThroughCore::interpolate(double time) const {
   return result;
 }
 
-double FlyThroughCore::lerpAngle(double a, double b, double t) {
+double FlyThroughCore::lerpAngle(double a, double b, double t) const {
   double diff = b - a;
   // Shortest path interpolation
   while (diff > 180)

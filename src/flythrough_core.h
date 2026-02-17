@@ -4,6 +4,7 @@
 #include <QObject>
 #include <qgsgeometry.h>
 #include <qgspointxy.h>
+#include <qgsraster.h>
 #include <qgsrectangle.h>
 #include <qgsvector3d.h>
 #include <vector>
@@ -53,8 +54,8 @@ private:
   double getElevation(QgsRasterLayer *dem, const QgsPointXY &point);
 
   // Math helpers
-  double calculateBearing(const QgsPointXY &p1, const QgsPointXY &p2);
-  double lerpAngle(double a, double b, double t);
+  double calculateBearing(const QgsPointXY &p1, const QgsPointXY &p2) const;
+  double lerpAngle(double a, double b, double t) const;
 };
 
 #endif // FLYTHROUGH_CORE_H
