@@ -5,7 +5,11 @@
 #include <QMessageBox>
 
 // Metadata functions
-// Metadata is handled via metadata.txt
+const QString name() { return "FlyThrough Pro C++"; }
+const QString description() { return "C++ accelerated 3D flythrough plugin"; }
+const QString version() { return "0.1"; }
+const QString category() { return "Plugins"; }
+int type() { return QgisPlugin::UI; } // Type UI
 
 // Factory function
 FlyThroughPlugin *classFactory(QgisInterface *iface) {
