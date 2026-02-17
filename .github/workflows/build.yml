@@ -84,4 +84,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: QGIS-Plugin-${{ runner.os }}
-        path: build/libflythrough_pro_cpp.* 
+        path: build/**/libflythrough_pro_cpp.*
