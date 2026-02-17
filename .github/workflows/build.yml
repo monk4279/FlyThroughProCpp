@@ -51,6 +51,8 @@ jobs:
         brew install qgis
         brew install qt@5
         brew link qt@5 --force
+        echo "Qt5_DIR=$(brew --prefix qt@5)/lib/cmake/Qt5" >> $GITHUB_ENV
+        echo "PATH=$(brew --prefix qt@5)/bin:$PATH" >> $GITHUB_ENV
 
     # --- Build Step ---
     - name: Build
