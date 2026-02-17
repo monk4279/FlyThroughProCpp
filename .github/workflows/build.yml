@@ -27,7 +27,6 @@ jobs:
           qtbase5-dev \
           qttools5-dev \
           libqt5svg5-dev \
-          qt5-default \
           cmake \
           build-essential
 
