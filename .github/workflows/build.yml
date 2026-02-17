@@ -44,24 +44,35 @@ jobs:
         choco install qgis-ltr -y
       shell: cmd
 
-    # --- macOS Setup ---
-    - name: Install Dependencies (macOS)
+    # --- macOS Setup (via Micromamba) ---
+    - name: Setup Micromamba (macOS)
       if: runner.os == 'macOS'
-      run: |
-        brew install qgis
-        brew install qt@5
-        brew link qt@5 --force
-        echo "Qt5_DIR=$(brew --prefix qt@5)/lib/cmake/Qt5" >> $GITHUB_ENV
-        echo "PATH=$(brew --prefix qt@5)/bin:$PATH" >> $GITHUB_ENV
-        brew info qgis
-        # Debug: Find actual QGIS files
-        echo "Searching for headers..."
-        find /Applications/QGIS.app -name "qgsapplication.h" || true
-        echo "Searching for libs..."
-        find /Applications/QGIS.app -name "qgis_core*" || true
+      uses: mamba-org/setup-micromamba@v1
+      with:
+        environment-name: qgis-dev
+        create-args: >-
+          qgis
+          qt-main
+          compilers
+          cmake
+          pkg-config
+        init-shell: bash 
 
-    # --- Build Step ---
-    - name: Build
+    - name: Build (macOS)
+      if: runner.os == 'macOS'
+      shell: bash -l {0}
+      run: |
+        mkdir build
+        cd build
+        cmake .. \
+          -DCMAKE_PREFIX_PATH=$CONDA_PREFIX \
+          -DQGIS_DIR=$CONDA_PREFIX \
+          -DQt5_DIR=$CONDA_PREFIX/lib/cmake/Qt5
+        cmake --build . --config Release
+
+    # --- Build Step (Linux) ---
+    - name: Build (Linux)
+      if: runner.os == 'Linux'
       run: |
         mkdir build
         cd build
