@@ -30,24 +30,20 @@ jobs:
           cmake \
           build-essential
 
-    # --- Windows Setup ---
-    - name: Install QGIS (Windows)
+    # --- Windows Setup (via Micromamba) ---
+    - name: Setup Micromamba (Windows)
       if: runner.os == 'Windows'
-      run: |
-        choco install qgis --version=3.28.3 -y
-      shell: cmd
-
-    - name: Install Qt (Windows)
-      if: runner.os == 'Windows'
-      uses: jurplel/install-qt-action@v3
+      uses: mamba-org/setup-micromamba@v1
       with:
-        version: '5.15.2'
-
-    - name: Install QGIS Dev (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        choco install qgis-ltr -y
-      shell: cmd
+        environment-name: qgis-dev
+        create-args: >-
+          qgis=3.28.3
+          qt-main
+          compilers
+          cmake
+          pkg-config
+          ninja
+        init-shell: cmd.exe
 
     # --- macOS Setup (via Micromamba) ---
     - name: Setup Micromamba (macOS)
@@ -80,9 +76,10 @@ jobs:
       if: runner.os == 'Windows'
       shell: cmd
       run: |
+        call micromamba activate qgis-dev
         mkdir build
         cd build
-        cmake .. -DQGIS_DIR="C:/Program Files/QGIS 3.28.3"
+        cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%CONDA_PREFIX%" -DQGIS_DIR="%CONDA_PREFIX%" -DQt5_DIR="%CONDA_PREFIX%/Library/lib/cmake/Qt5"
         cmake --build . --config Release
 
     # --- Build Step (Linux) ---
