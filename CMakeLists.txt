@@ -66,9 +66,9 @@ target_link_libraries(flythrough_pro_cpp
 )
 
 # Definitions
-target_compile_definitions(flythrough_pro_cpp PRIVATE 
     FLYTHROUGH_PRO_CPP_LIBRARY
     _USE_MATH_DEFINES
+    _SILENCE_ALL_MS_EXT_DEPRECATION_WARNINGS
 )
 
 # Initial metadata file copy (optional)
