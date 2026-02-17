@@ -52,6 +52,8 @@ find_library(QGIS_CORE_LIBRARY NAMES qgis_core
     /usr/local/lib
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
+    /opt/homebrew/opt/qgis/lib
+    /usr/local/opt/qgis/lib
     /Applications/QGIS.app/Contents/Frameworks
     /Applications/QGIS-LTR.app/Contents/Frameworks
 )
@@ -63,6 +65,8 @@ find_library(QGIS_GUI_LIBRARY NAMES qgis_gui
     /usr/local/lib
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
+    /opt/homebrew/opt/qgis/lib
+    /usr/local/opt/qgis/lib
     /Applications/QGIS.app/Contents/Frameworks
     /Applications/QGIS-LTR.app/Contents/Frameworks
 )
@@ -74,6 +78,8 @@ find_library(QGIS_3D_LIBRARY NAMES qgis_3d
     /usr/local/lib
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
+    /opt/homebrew/opt/qgis/lib
+    /usr/local/opt/qgis/lib
     /Applications/QGIS.app/Contents/Frameworks
     /Applications/QGIS-LTR.app/Contents/Frameworks
 )
