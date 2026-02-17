@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     # --- Linux Setup ---
     - name: Install Dependencies (Linux)
@@ -65,7 +65,7 @@ jobs:
 
     # --- Upload Artifacts ---
     - name: Upload Plugin
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: QGIS-Plugin-${{ runner.os }}
         path: build/libflythrough_pro_cpp.* 
