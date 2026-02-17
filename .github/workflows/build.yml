@@ -76,11 +76,11 @@ jobs:
       if: runner.os == 'Windows'
       shell: cmd
       run: |
-        call micromamba activate qgis-dev
-        mkdir build
-        cd build
-        cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%CONDA_PREFIX%" -DQGIS_DIR="%CONDA_PREFIX%" -DQt5_DIR="%CONDA_PREFIX%/Library/lib/cmake/Qt5"
-        cmake --build . --config Release
+        echo mkdir build > build.bat
+        echo cd build >> build.bat
+        echo cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%%CONDA_PREFIX%%" -DQGIS_DIR="%%CONDA_PREFIX%%" -DQt5_DIR="%%CONDA_PREFIX%%/Library/lib/cmake/Qt5" >> build.bat
+        echo cmake --build . --config Release >> build.bat
+        micromamba run -n qgis-dev build.bat
 
     # --- Build Step (Linux) ---
     - name: Build (Linux)
