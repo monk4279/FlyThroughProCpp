@@ -2,6 +2,7 @@
 #define FLYTHROUGH_CORE_H
 
 #include <QObject>
+#include <qgis.h>
 #include <qgsgeometry.h>
 #include <qgspointxy.h>
 #include <qgsraster.h>

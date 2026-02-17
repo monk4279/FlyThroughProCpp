@@ -117,7 +117,7 @@ double FlyThroughCore::getElevation(QgsRasterLayer *dem,
   QgsPointXY samplePt = point;
   // Simple identify
   QgsRasterIdentifyResult result =
-      provider->identify(samplePt, QgsRaster::IdentifyFormatValue);
+      provider->identify(samplePt, Qgis::RasterIdentifyFormat::Value);
   if (result.isValid()) {
     QMap<int, QVariant> results = result.results();
     if (results.contains(1)) { // Band 1
