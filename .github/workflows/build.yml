@@ -13,8 +13,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # os: [ubuntu-latest, windows-latest, macos-latest]
-
+ 
     steps:
     - uses: actions/checkout@v4
 
@@ -28,24 +27,26 @@ jobs:
           qtbase5-dev \
           qttools5-dev \
           libqt5svg5-dev \
-          qt3d5-dev \
           cmake \
           build-essential
 
     # --- Windows Setup ---
+    - name: Install QGIS (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install qgis --version=3.28.3 -y
+      shell: cmd
+
     - name: Install Qt (Windows)
       if: runner.os == 'Windows'
       uses: jurplel/install-qt-action@v3
       with:
         version: '5.15.2'
 
-    - name: Install QGIS 3.28.3 (Windows)
+    - name: Install QGIS Dev (Windows)
       if: runner.os == 'Windows'
       run: |
-        choco install qgis -y --version 3.28.3
-        refreshenv
-        echo "Searching for QGIS..."
-        dir "C:\Program Files\QGIS*" /s /b
+        choco install qgis-ltr -y
       shell: cmd
 
     # --- macOS Setup (via Micromamba) ---
@@ -88,4 +89,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: QGIS-Plugin-${{ runner.os }}
-        path: build/**/*flythrough_pro_cpp.*
+        path: build/libflythrough_pro_cpp.* 

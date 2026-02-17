@@ -38,6 +38,10 @@ find_path(QGIS_INCLUDE_DIR NAMES qgsapplication.h
     "${QGIS_DIR}/include"
     "$ENV{OSGEO4W_ROOT}/include"
     "$ENV{OSGEO4W_ROOT}/apps/qgis/include"
+    "C:/Program Files/QGIS 3.28.3/include"
+    "C:/Program Files/QGIS 3.28.3/apps/qgis/include"
+    "C:/Program Files/QGIS/include"
+    "C:/Program Files/QGIS/apps/qgis/include"
     /opt/homebrew/opt/qgis/include
     /usr/local/opt/qgis/include
     /Applications/QGIS.app/Contents/Frameworks/qgis_core.framework/Headers
