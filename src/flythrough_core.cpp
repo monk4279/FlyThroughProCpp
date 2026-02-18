@@ -282,7 +282,7 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
   while (it.nextFeature(feature)) {
     QgsGeometry geom = feature.geometry();
 
-    if (geom.type() == QgsWkbTypes::LineGeometry) {
+    if (geom.type() == Qgis::GeometryType::Line) {
       if (geom.isMultipart()) {
         QgsMultiPolylineXY multiLine = geom.asMultiPolyline();
         for (const QgsPolylineXY &line : multiLine) {
@@ -293,7 +293,7 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
         for (const QgsPointXY &pt : geom.asPolyline())
           vertices.append(pt);
       }
-    } else if (geom.type() == QgsWkbTypes::PointGeometry) {
+    } else if (geom.type() == Qgis::GeometryType::Point) {
       if (geom.isMultipart()) {
         for (const QgsPointXY &pt : geom.asMultiPoint())
           vertices.append(pt);

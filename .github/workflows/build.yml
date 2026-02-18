@@ -53,20 +53,17 @@ jobs:
         echo === Checking QGIS Dev Installation ===
         dir C:\OSGeo4W\apps\qgis-ltr-dev
         echo.
-        echo === Include Directory ===
-        dir C:\OSGeo4W\apps\qgis-ltr-dev\include
-        echo.
         echo === Include/qgis Directory ===
         dir C:\OSGeo4W\apps\qgis-ltr-dev\include\qgis
         echo.
-        echo === Searching for DEM terrain headers ===
-        dir /s /b C:\OSGeo4W\apps\qgis-ltr-dev\include\*dem*
+        echo === qgsmaplayerproxymodel.h content ===
+        type C:\OSGeo4W\apps\qgis-ltr-dev\include\qgis\qgsmaplayerproxymodel.h
+        echo.
+        echo === qgswkbtypes.h enum section ===
+        findstr /n "GeometryType\|LineGeometry\|PointGeometry\|enum" C:\OSGeo4W\apps\qgis-ltr-dev\include\qgis\qgswkbtypes.h
         echo.
         echo === Lib Directory ===
         dir C:\OSGeo4W\apps\qgis-ltr-dev\lib
-        echo.
-        echo === Bin Directory ===
-        dir C:\OSGeo4W\apps\qgis-ltr-dev\bin
 
     # --- Build Step (Windows with OSGeo4W) ---
     - name: Build QGIS Plugin
