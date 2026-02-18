@@ -2,6 +2,7 @@
 #define FLYTHROUGH_PLUGIN_H
 
 #include <QObject>
+#include <QString>
 #include <qgisinterface.h>
 #include <qgisplugin.h>
 
@@ -23,25 +24,15 @@ private:
   QAction *mAction = nullptr;
 };
 
-// Standard QGIS plugin entry points
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(                                                               \
-    disable : 4190) // Disable "C-linkage returning C++ object" warning
-#endif
-
+// Standard QGIS C++ plugin entry points
+// QGIS plugin loader looks for these exact function names and signatures
 extern "C" {
-Q_DECL_EXPORT const char *name();
-Q_DECL_EXPORT const char *description();
-Q_DECL_EXPORT const char *version();
-Q_DECL_EXPORT const char *category();
+Q_DECL_EXPORT QgisPlugin *classFactory(QgisInterface *iface);
+Q_DECL_EXPORT QString name();
+Q_DECL_EXPORT QString description();
+Q_DECL_EXPORT QString category();
 Q_DECL_EXPORT int type();
-Q_DECL_EXPORT void unload(FlyThroughPlugin *plugin);
-Q_DECL_EXPORT FlyThroughPlugin *classFactory(QgisInterface *iface);
+Q_DECL_EXPORT void unload(QgisPlugin *plugin);
 }
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 #endif // FLYTHROUGH_PLUGIN_H

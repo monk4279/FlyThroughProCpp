@@ -4,23 +4,26 @@
 #include <QIcon>
 #include <QMessageBox>
 
-// Metadata functions
-const char *name() { return "FlyThrough Pro C++"; }
-const char *description() { return "C++ accelerated 3D flythrough plugin"; }
-const char *version() { return "0.1"; }
-const char *category() { return "Plugins"; }
-int type() { return QgisPlugin::UI; } // Type UI
+// Metadata functions - must match QGIS plugin loader typedefs exactly
+QString name() { return QStringLiteral("FlyThrough Pro C++"); }
+QString description() {
+  return QStringLiteral("C++ accelerated 3D flythrough plugin");
+}
+QString category() { return QStringLiteral("Plugins"); }
+int type() { return QgisPlugin::UI; }
 
-// Factory function
-FlyThroughPlugin *classFactory(QgisInterface *iface) {
+// Factory function - QGIS plugin loader calls classFactory
+QgisPlugin *classFactory(QgisInterface *iface) {
   return new FlyThroughPlugin(iface);
 }
 
 // Unload function
-void unload(FlyThroughPlugin *plugin) { delete plugin; }
+void unload(QgisPlugin *plugin) { delete plugin; }
 
 // Class Implementation
-FlyThroughPlugin::FlyThroughPlugin(QgisInterface *iface) : mIface(iface) {}
+FlyThroughPlugin::FlyThroughPlugin(QgisInterface *iface)
+    : QObject(nullptr), QgisPlugin(name(), description(), category(), type()),
+      mIface(iface) {}
 
 FlyThroughPlugin::~FlyThroughPlugin() {
   // Cleanup handled in unload
