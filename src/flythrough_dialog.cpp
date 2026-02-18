@@ -7,13 +7,14 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QVBoxLayout>
 #include <qgis/qgs3dmapcanvas.h>
 #include <qgsmaplayercombobox.h>
 #include <qgsmaplayerproxymodel.h>
-#include <qgsproject.h>
 
 FlyThroughDialog::FlyThroughDialog(QgisInterface *iface, QWidget *parent)
     : QDialog(parent), mIface(iface) {
@@ -23,81 +24,121 @@ FlyThroughDialog::FlyThroughDialog(QgisInterface *iface, QWidget *parent)
 FlyThroughDialog::~FlyThroughDialog() {}
 
 void FlyThroughDialog::setupUi() {
-  setWindowTitle("FlyThrough Pro C++");
-  resize(400, 500);
+  setWindowTitle("FlyThrough Pro - 3D Animation");
+  resize(600, 700);
 
   QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
-  // --- Input Layers Group ---
-  QGroupBox *inputGroup = new QGroupBox("Input Data", this);
-  QFormLayout *inputLayout = new QFormLayout(inputGroup);
-
-  mPathLayerCombo = new QgsMapLayerComboBox(this);
-  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::LineLayer);
-  inputLayout->addRow("Path Layer (Line):", mPathLayerCombo);
+  // --- Basic Settings Group ---
+  QGroupBox *basicGroup = new QGroupBox("Basic Settings", this);
+  QFormLayout *basicLayout = new QFormLayout();
 
   mDemLayerCombo = new QgsMapLayerComboBox(this);
   mDemLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer);
-  inputLayout->addRow("DEM Layer (Raster):", mDemLayerCombo);
+  basicLayout->addRow("DEM Layer:", mDemLayerCombo);
 
-  mainLayout->addWidget(inputGroup);
+  mPathLayerCombo = new QgsMapLayerComboBox(this);
+  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::VectorLayer);
+  basicLayout->addRow("Path Layer:", mPathLayerCombo);
 
-  // --- Camera Settings Group ---
-  QGroupBox *cameraGroup = new QGroupBox("Camera Settings", this);
-  QFormLayout *camLayout = new QFormLayout(cameraGroup);
+  mOverlayLayerCombo = new QgsMapLayerComboBox(this);
+  mOverlayLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer |
+                                 QgsMapLayerProxyModel::VectorLayer);
+  mOverlayLayerCombo->setAllowEmptyLayer(true);
+  basicLayout->addRow("Overlay (optional):", mOverlayLayerCombo);
 
-  maltitudeModeCombo = new QComboBox(this);
-  maltitudeModeCombo->addItems({"Above Safe Path", "Fixed Altitude (AMSL)"});
-  camLayout->addRow("Altitude Mode:", maltitudeModeCombo);
+  mAltitudeModeCombo = new QComboBox(this);
+  mAltitudeModeCombo->addItem("Above Safe Path");
+  mAltitudeModeCombo->addItem("Fixed Altitude (AMSL)");
+  basicLayout->addRow("Altitude Mode:", mAltitudeModeCombo);
 
   mCameraHeightSpin = new QDoubleSpinBox(this);
-  mCameraHeightSpin->setRange(0, 10000);
-  mCameraHeightSpin->setValue(200);
+  mCameraHeightSpin->setRange(1.0, 10000.0);
+  mCameraHeightSpin->setValue(200.0);
   mCameraHeightSpin->setSuffix(" m");
-  camLayout->addRow("Height / Clearance:", mCameraHeightSpin);
+  basicLayout->addRow("Camera Height:", mCameraHeightSpin);
 
   mCameraPitchSpin = new QDoubleSpinBox(this);
-  mCameraPitchSpin->setRange(-90, 90);
-  mCameraPitchSpin->setValue(65);
-  mCameraPitchSpin->setSuffix(" deg");
-  camLayout->addRow("Pitch (Look Down):", mCameraPitchSpin);
+  mCameraPitchSpin->setRange(-90.0, 90.0);
+  mCameraPitchSpin->setValue(65.0);
+  mCameraPitchSpin->setSuffix("°");
+  basicLayout->addRow("Camera Pitch (Down):", mCameraPitchSpin);
 
-  mLookAheadSpin = new QDoubleSpinBox(this);
-  mLookAheadSpin->setRange(0, 2000);
-  mLookAheadSpin->setValue(100);
-  mLookAheadSpin->setSuffix(" m");
-  camLayout->addRow("Look Ahead Dist:", mLookAheadSpin);
+  mFovSpin = new QDoubleSpinBox(this);
+  mFovSpin->setRange(10.0, 120.0);
+  mFovSpin->setValue(45.0);
+  mFovSpin->setSuffix("°");
+  basicLayout->addRow("Field of View:", mFovSpin);
 
-  mainLayout->addWidget(cameraGroup);
+  mVerticalExagSpin = new QDoubleSpinBox(this);
+  mVerticalExagSpin->setRange(0.1, 10.0);
+  mVerticalExagSpin->setValue(1.0);
+  mVerticalExagSpin->setSingleStep(0.1);
+  basicLayout->addRow("Vertical Exaggeration:", mVerticalExagSpin);
 
-  // --- Animation Settings ---
-  QGroupBox *animGroup = new QGroupBox("Animation", this);
-  QFormLayout *animLayout = new QFormLayout(animGroup);
+  basicGroup->setLayout(basicLayout);
+  mainLayout->addWidget(basicGroup);
+
+  // --- Animation Settings Group ---
+  QGroupBox *animGroup = new QGroupBox("Animation Settings", this);
+  QFormLayout *animLayout = new QFormLayout();
 
   mSpeedSpin = new QDoubleSpinBox(this);
-  mSpeedSpin->setRange(1, 10000);
-  mSpeedSpin->setValue(100);
-  mSpeedSpin->setSuffix(" km/h");
+  mSpeedSpin->setRange(1.0, 1000.0);
+  mSpeedSpin->setValue(50.0);
+  mSpeedSpin->setSuffix(" m/s");
   animLayout->addRow("Speed:", mSpeedSpin);
 
-  mBankingCheck = new QCheckBox("Enable Banking", this);
+  mSmoothingSpin = new QSpinBox(this);
+  mSmoothingSpin->setRange(0, 10);
+  mSmoothingSpin->setValue(0);
+  animLayout->addRow("Path Smoothing:", mSmoothingSpin);
+
+  mBankingCheck = new QCheckBox("Enable Camera Banking", this);
   mBankingCheck->setChecked(true);
   animLayout->addRow(mBankingCheck);
 
-  mExportVideoCheck = new QCheckBox("Export Video (requires FFmpeg)", this);
-  animLayout->addRow(mExportVideoCheck);
+  mBankingFactorSpin = new QDoubleSpinBox(this);
+  mBankingFactorSpin->setRange(0.0, 2.0);
+  mBankingFactorSpin->setValue(0.5);
+  mBankingFactorSpin->setSingleStep(0.1);
+  animLayout->addRow("Banking Factor:", mBankingFactorSpin);
 
+  mLookaheadSpin = new QDoubleSpinBox(this);
+  mLookaheadSpin->setRange(0.0, 5000.0);
+  mLookaheadSpin->setValue(1000.0);
+  mLookaheadSpin->setSuffix(" m");
+  animLayout->addRow("Look-ahead Distance:", mLookaheadSpin);
+
+  mFpsSpin = new QSpinBox(this);
+  mFpsSpin->setRange(24, 120);
+  mFpsSpin->setValue(30);
+  animLayout->addRow("FPS:", mFpsSpin);
+
+  animGroup->setLayout(animLayout);
   mainLayout->addWidget(animGroup);
+
+  // --- Rendering Group ---
+  QGroupBox *renderGroup = new QGroupBox("Rendering", this);
+  QFormLayout *renderLayout = new QFormLayout();
+
+  mTerrainShadingCheck = new QCheckBox("Terrain Shading", this);
+  mTerrainShadingCheck->setChecked(true);
+  renderLayout->addRow(mTerrainShadingCheck);
+
+  mExportVideoCheck = new QCheckBox("Export Video (DISABLED)", this);
+  mExportVideoCheck->setEnabled(false);
+  mExportVideoCheck->setToolTip("Video export not implemented in this version");
+  renderLayout->addRow(mExportVideoCheck);
+
+  renderGroup->setLayout(renderLayout);
+  mainLayout->addWidget(renderGroup);
 
   // --- Buttons ---
   QHBoxLayout *btnLayout = new QHBoxLayout();
+  btnLayout->addStretch();
 
-  QPushButton *previewBtn = new QPushButton("Preview", this);
-  connect(previewBtn, &QPushButton::clicked, this,
-          &FlyThroughDialog::onPreviewClicked);
-  btnLayout->addWidget(previewBtn);
-
-  QPushButton *generateBtn = new QPushButton("Generate", this);
+  QPushButton *generateBtn = new QPushButton("Generate Flythrough", this);
   generateBtn->setDefault(true);
   connect(generateBtn, &QPushButton::clicked, this,
           &FlyThroughDialog::onGenerateClicked);
@@ -111,9 +152,42 @@ void FlyThroughDialog::setupUi() {
 }
 
 void FlyThroughDialog::onPreviewClicked() {
-  // TODO: Connect to Core Logic
+  onGenerateClicked(); // Same as generate for now
 }
 
 void FlyThroughDialog::onGenerateClicked() {
-  // TODO: Connect to Core Logic
+  // Validate inputs
+  if (!mDemLayerCombo->currentLayer() || !mPathLayerCombo->currentLayer()) {
+    QMessageBox::warning(this, "Missing Layers",
+                         "Please select both DEM and path layers.");
+    return;
+  }
+
+  // Build parameters
+  FlythroughParams params;
+  params.pathLayer =
+      qobject_cast<QgsVectorLayer *>(mPathLayerCombo->currentLayer());
+  params.demLayer =
+      qobject_cast<QgsRasterLayer *>(mDemLayerCombo->currentLayer());
+  params.overlayLayer = mOverlayLayerCombo->currentLayer();
+  params.altitudeMode = mAltitudeModeCombo->currentText();
+  params.cameraHeight = mCameraHeightSpin->value();
+  params.cameraPitch = mCameraPitchSpin->value();
+  params.fieldOfView = mFovSpin->value();
+  params.verticalExaggeration = mVerticalExagSpin->value();
+  params.speed = mSpeedSpin->value();
+  params.smoothing = mSmoothingSpin->value();
+  params.enableBanking = mBankingCheck->isChecked();
+  params.bankingFactor = mBankingFactorSpin->value();
+  params.terrainShading = mTerrainShadingCheck->isChecked();
+  params.lookaheadDistance = mLookaheadSpin->value();
+  params.fps = mFpsSpin->value();
+
+  // Create and run core logic
+  FlyThroughCore *core = new FlyThroughCore(mIface);
+  if (core->generateFlythrough(params)) {
+    // Success - close dialog
+    accept();
+  }
+  // Core manages its own lifecycle (deletes when animation stops)
 }

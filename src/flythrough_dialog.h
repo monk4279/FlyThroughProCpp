@@ -23,15 +23,22 @@ private:
   QgisInterface *mIface = nullptr;
   void setupUi();
 
-  // UI Elements
+  // UI Elements (matching Python dialog)
   QgsMapLayerComboBox *mDemLayerCombo = nullptr;
   QgsMapLayerComboBox *mPathLayerCombo = nullptr;
-  QComboBox *maltitudeModeCombo = nullptr;
+  QgsMapLayerComboBox *mOverlayLayerCombo = nullptr;
+  QComboBox *mAltitudeModeCombo = nullptr;
   QDoubleSpinBox *mCameraHeightSpin = nullptr;
   QDoubleSpinBox *mCameraPitchSpin = nullptr;
+  QDoubleSpinBox *mFovSpin = nullptr;
+  QDoubleSpinBox *mVerticalExagSpin = nullptr;
   QDoubleSpinBox *mSpeedSpin = nullptr;
-  QDoubleSpinBox *mLookAheadSpin = nullptr;
+  QSpinBox *mSmoothingSpin = nullptr;
+  QDoubleSpinBox *mBankingFactorSpin = nullptr;
+  QDoubleSpinBox *mLookaheadSpin = nullptr;
+  QSpinBox *mFpsSpin = nullptr;
   QCheckBox *mBankingCheck = nullptr;
+  QCheckBox *mTerrainShadingCheck = nullptr;
   QCheckBox *mExportVideoCheck = nullptr;
 };
 
