@@ -17,9 +17,17 @@ jobs:
     # --- Setup OSGeo4W with QGIS Development Tools ---
     - name: Install OSGeo4W and QGIS 3.28
       shell: cmd
+      timeout-minutes: 15
       run: |
         curl -L -o osgeo4w-setup.exe http://download.osgeo.org/osgeo4w/v2/osgeo4w-setup.exe
-        osgeo4w-setup.exe --quiet-mode --no-desktop --only-site --root C:\OSGeo4W --site http://download.osgeo.org/osgeo4w/v2 --packages qgis-ltr-dev,qt5-devel,cmake,ninja
+        osgeo4w-setup.exe ^
+          --quiet-mode ^
+          --no-desktop ^
+          --only-site ^
+          --autoaccept ^
+          --root C:\OSGeo4W ^
+          --site http://download.osgeo.org/osgeo4w/v2 ^
+          --packages qgis-ltr-dev,qt5-devel,cmake,ninja
         
     - name: Wait for Installation
       shell: cmd
