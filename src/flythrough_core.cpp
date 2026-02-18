@@ -162,10 +162,14 @@ bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
     return false;
   }
 
-  // Configure terrain
-  QgsDemTerrainSettings terrainSettings;
-  terrainSettings.setLayer(params.demLayer);
-  mMapSettings3D->setTerrainSettings(terrainSettings);
+  // Configure terrain using QGIS 3.28 API (QgsDemTerrainGenerator)
+  if (params.demLayer) {
+    QgsDemTerrainGenerator *terrainGen = new QgsDemTerrainGenerator();
+    terrainGen->setLayer(params.demLayer);
+    terrainGen->setCrs(mMapSettings3D->crs(),
+                       QgsProject::instance()->transformContext());
+    mMapSettings3D->setTerrainGenerator(terrainGen);
+  }
   mMapSettings3D->setTerrainVerticalScale(params.verticalExaggeration);
 
   // CRS handling
