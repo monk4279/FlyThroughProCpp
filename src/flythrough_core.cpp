@@ -2,7 +2,9 @@
 #include <QApplication>
 #include <QDebug>
 #include <QMessageBox>
+#include <QThread>
 #include <QTimer>
+#include <QtMath>
 #include <cmath>
 #include <qgisinterface.h>
 #include <qgs3dmapcanvas.h>
@@ -284,14 +286,17 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
       if (geom.isMultipart()) {
         QgsMultiPolylineXY multiLine = geom.asMultiPolyline();
         for (const QgsPolylineXY &line : multiLine) {
-          vertices.append(line);
+          for (const QgsPointXY &pt : line)
+            vertices.append(pt);
         }
       } else {
-        vertices.append(geom.asPolyline());
+        for (const QgsPointXY &pt : geom.asPolyline())
+          vertices.append(pt);
       }
     } else if (geom.type() == QgsWkbTypes::PointGeometry) {
       if (geom.isMultipart()) {
-        vertices.append(geom.asMultiPoint());
+        for (const QgsPointXY &pt : geom.asMultiPoint())
+          vertices.append(pt);
       } else {
         vertices.append(geom.asPoint());
       }
@@ -319,7 +324,7 @@ QList<QgsPointXY> FlyThroughCore::densifyPath(const QList<QgsPointXY> &vertices,
       continue;
     }
 
-    int numSegments = qCeil(dist / interval);
+    int numSegments = static_cast<int>(std::ceil(dist / interval));
     double dx = (p2.x() - p1.x()) / numSegments;
     double dy = (p2.y() - p1.y()) / numSegments;
 
@@ -657,7 +662,7 @@ void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
 
   double dx = lookX - x;
   double dy = lookY - y;
-  double rawDist = qSqrt(dx * dx + dy * dy);
+  double rawDist = std::sqrt(dx * dx + dy * dy);
 
   double dxScaled = dx;
   double dyScaled = dy;
@@ -671,8 +676,8 @@ void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
   } else {
     // Fallback to yaw
     double rad = qDegreesToRadians(yaw);
-    dxScaled = lookAhead * qSin(rad);
-    dyScaled = lookAhead * qCos(rad);
+    dxScaled = lookAhead * std::sin(rad);
+    dyScaled = lookAhead * std::cos(rad);
     aheadGz = groundZ;
   }
 
@@ -691,16 +696,17 @@ void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
   double camZ = absoluteZ;
 
   // Calculate vertical offset from pitch
-  double horizM = qSqrt(dxScaled * dxScaled + dyScaled * dyScaled);
+  double horizM = std::sqrt(dxScaled * dxScaled + dyScaled * dyScaled);
   double pitchRad = qDegreesToRadians(pitchParam);
-  double verticalOffset = horizM * qTan(pitchRad);
+  double verticalOffset = horizM * std::tan(pitchRad);
   double finalZ = camZ + verticalOffset;
 
   // Prevent looking underground
   if (finalZ < aheadGz) {
     double vertDiff = camZ - aheadGz;
     if (vertDiff > 0 && qAbs(pitchParam) > 1.0) {
-      double reqHorizM = vertDiff / qTan(qDegreesToRadians(qAbs(pitchParam)));
+      double reqHorizM =
+          vertDiff / std::tan(qDegreesToRadians(qAbs(pitchParam)));
       if (horizM > 0.1) {
         double scaleDown = reqHorizM / horizM;
         if (scaleDown < 1.0) {
@@ -722,15 +728,15 @@ void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
 
   // Calculate camera parameters
   double vert = camZ - finalZ;
-  double dist = qSqrt(horizM * horizM + vert * vert);
+  double dist = std::sqrt(horizM * horizM + vert * vert);
   if (dist < 1.0)
     dist = camHeight;
 
   double orbPitch =
-      (horizM < 0.001) ? 0.0 : qRadiansToDegrees(qAtan2(vert, horizM));
+      (horizM < 0.001) ? 0.0 : qRadiansToDegrees(std::atan2(vert, horizM));
   orbPitch = qMax(0.0, qMin(180.0, orbPitch));
 
-  double bear = qRadiansToDegrees(qAtan2(dxScaled, dyScaled));
+  double bear = qRadiansToDegrees(std::atan2(dxScaled, dyScaled));
   double orbYaw = fmod(360.0 - bear, 360.0);
 
   QgsVector3D mapPt(finalX, finalY, finalZ);
@@ -773,7 +779,7 @@ double FlyThroughCore::calculateBearing(const QgsPointXY &p1,
                                         const QgsPointXY &p2) const {
   double dx = p2.x() - p1.x();
   double dy = p2.y() - p1.y();
-  double bearing = qRadiansToDegrees(qAtan2(dx, dy));
+  double bearing = qRadiansToDegrees(std::atan2(dx, dy));
   return fmod(bearing + 360.0, 360.0);
 }
 
