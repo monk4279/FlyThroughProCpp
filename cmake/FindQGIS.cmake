@@ -58,12 +58,26 @@ endif()
 
 # Look for libraries
 # Core
-find_library(QGIS_CORE_LIBRARY NAMES qgis_core
+find_library(QGIS_CORE_LIBRARY 
+  NAMES qgis_core qgis_core3 qgis_core.dll
   PATHS
-    /usr/lib
-    /usr/local/lib
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/bin"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/bin"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/bin"
+    "$ENV{OSGEO4W_ROOT}/lib"
+    "$ENV{OSGEO4W_ROOT}/bin"
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
+    "${QGIS_DIR}/lib"
+    "C:/Program Files/QGIS 3.28.3/lib"
+    "C:/Program Files/QGIS 3.28.3/bin"
+    "C:/Program Files/QGIS/lib"
+    "C:/Program Files/QGIS/bin"
+    /usr/lib
+    /usr/local/lib
     /opt/homebrew/opt/qgis/lib
     /usr/local/opt/qgis/lib
     /Applications/QGIS.app/Contents/Frameworks
@@ -72,19 +86,23 @@ find_library(QGIS_CORE_LIBRARY NAMES qgis_core
 
 # Gui
 find_library(QGIS_GUI_LIBRARY
-  NAMES qgis_gui
+  NAMES qgis_gui qgis_gui3 qgis_gui.dll
   PATHS
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/bin"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/bin"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/bin"
+    "$ENV{OSGEO4W_ROOT}/lib"
+    "$ENV{OSGEO4W_ROOT}/bin"
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
     "${QGIS_DIR}/lib"
-    "$ENV{OSGEO4W_ROOT}/lib"
-    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
-    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
-    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
     "C:/Program Files/QGIS 3.28.3/lib"
-    "C:/Program Files/QGIS 3.28.3/apps/qgis/lib"
+    "C:/Program Files/QGIS 3.28.3/bin"
     "C:/Program Files/QGIS/lib"
-    "C:/Program Files/QGIS/apps/qgis/lib"
+    "C:/Program Files/QGIS/bin"
     /usr/lib
     /usr/local/lib
     /opt/homebrew/opt/qgis/lib
@@ -95,19 +113,23 @@ find_library(QGIS_GUI_LIBRARY
 
 # 3D
 find_library(QGIS_3D_LIBRARY
-  NAMES qgis_3d
+  NAMES qgis_3d qgis_3d3 qgis_3d.dll
   PATHS
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/bin"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/bin"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/bin"
+    "$ENV{OSGEO4W_ROOT}/lib"
+    "$ENV{OSGEO4W_ROOT}/bin"
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
     "${QGIS_DIR}/lib"
-    "$ENV{OSGEO4W_ROOT}/lib"
-    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
-    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
-    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
     "C:/Program Files/QGIS 3.28.3/lib"
-    "C:/Program Files/QGIS 3.28.3/apps/qgis/lib"
+    "C:/Program Files/QGIS 3.28.3/bin"
     "C:/Program Files/QGIS/lib"
-    "C:/Program Files/QGIS/apps/qgis/lib"
+    "C:/Program Files/QGIS/bin"
     /usr/lib
     /usr/local/lib
     /opt/homebrew/opt/qgis/lib
