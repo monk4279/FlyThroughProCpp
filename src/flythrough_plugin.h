@@ -25,12 +25,17 @@ private:
 };
 
 // Standard QGIS C++ plugin entry points
-// QGIS plugin loader looks for these exact function names and signatures
+// Exact typedefs from qgspluginregistry.cpp:
+//   typedef QgisPlugin *create_ui( QgisInterface *qI );
+//   typedef const QString *name_t();
+//   typedef const QString *description_t();
+//   typedef const QString *category_t();
+//   typedef int type_t();
 extern "C" {
 Q_DECL_EXPORT QgisPlugin *classFactory(QgisInterface *iface);
-Q_DECL_EXPORT QString name();
-Q_DECL_EXPORT QString description();
-Q_DECL_EXPORT QString category();
+Q_DECL_EXPORT const QString *name();
+Q_DECL_EXPORT const QString *description();
+Q_DECL_EXPORT const QString *category();
 Q_DECL_EXPORT int type();
 Q_DECL_EXPORT void unload(QgisPlugin *plugin);
 }

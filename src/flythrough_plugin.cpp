@@ -4,15 +4,20 @@
 #include <QIcon>
 #include <QMessageBox>
 
-// Metadata functions - must match QGIS plugin loader typedefs exactly
-QString name() { return QStringLiteral("FlyThrough Pro C++"); }
-QString description() {
-  return QStringLiteral("C++ accelerated 3D flythrough plugin");
-}
-QString category() { return QStringLiteral("Plugins"); }
+// Static strings for pointer returns (QGIS dereferences these pointers)
+static const QString sName = QStringLiteral("FlyThrough Pro C++");
+static const QString sDescription =
+    QStringLiteral("C++ accelerated 3D flythrough plugin");
+static const QString sCategory = QStringLiteral("Plugins");
+
+// Metadata functions - return pointers to static QStrings
+// Matches QGIS typedefs: typedef const QString *name_t();
+const QString *name() { return &sName; }
+const QString *description() { return &sDescription; }
+const QString *category() { return &sCategory; }
 int type() { return QgisPlugin::UI; }
 
-// Factory function - QGIS plugin loader calls classFactory
+// Factory function - QGIS resolves "classFactory" symbol
 QgisPlugin *classFactory(QgisInterface *iface) {
   return new FlyThroughPlugin(iface);
 }
@@ -22,23 +27,15 @@ void unload(QgisPlugin *plugin) { delete plugin; }
 
 // Class Implementation
 FlyThroughPlugin::FlyThroughPlugin(QgisInterface *iface)
-    : QObject(nullptr),
-      QgisPlugin(QStringLiteral("FlyThrough Pro C++"),
-                 QStringLiteral("C++ accelerated 3D flythrough plugin"),
-                 QStringLiteral("0.1"), QStringLiteral("Plugins"),
-                 QgisPlugin::UI),
+    : QObject(nullptr), QgisPlugin(sName, sDescription, QStringLiteral("0.1"),
+                                   sCategory, QgisPlugin::UI),
       mIface(iface) {}
 
-FlyThroughPlugin::~FlyThroughPlugin() {
-  // Cleanup handled in unload
-}
+FlyThroughPlugin::~FlyThroughPlugin() {}
 
 void FlyThroughPlugin::initGui() {
-  // Create the action
   mAction = new QAction(QIcon(), "FlyThrough Pro C++", this);
   connect(mAction, &QAction::triggered, this, &FlyThroughPlugin::run);
-
-  // Add to QGIS UI
   mIface->addPluginToVectorMenu("FlyThrough Pro C++", mAction);
   mIface->addToolBarIcon(mAction);
 }
