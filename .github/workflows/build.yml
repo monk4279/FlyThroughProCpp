@@ -56,6 +56,12 @@ jobs:
         echo === Include Directory ===
         dir C:\OSGeo4W\apps\qgis-ltr-dev\include
         echo.
+        echo === Include/qgis Directory ===
+        dir C:\OSGeo4W\apps\qgis-ltr-dev\include\qgis
+        echo.
+        echo === Searching for DEM terrain headers ===
+        dir /s /b C:\OSGeo4W\apps\qgis-ltr-dev\include\*dem*
+        echo.
         echo === Lib Directory ===
         dir C:\OSGeo4W\apps\qgis-ltr-dev\lib
         echo.

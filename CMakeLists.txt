@@ -37,6 +37,8 @@ include_directories(
     ${Qt5Network_INCLUDE_DIRS}
     ${QGIS_INCLUDE_DIR}
     ${QGIS_INCLUDE_DIR}/qgis
+    ${QGIS_INCLUDE_DIR}/qgis/3d
+    ${QGIS_INCLUDE_DIR}/3d
 )
 
 # Source files

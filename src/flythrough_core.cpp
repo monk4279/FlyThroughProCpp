@@ -1,4 +1,6 @@
 #include "flythrough_core.h"
+#include <QApplication>
+#include <QDebug>
 #include <QMessageBox>
 #include <QTimer>
 #include <cmath>
@@ -11,7 +13,6 @@
 #include <qgscoordinatereferencesystem.h>
 #include <qgscoordinatetransform.h>
 #include <qgsdemterraingenerator.h>
-#include <qgsdemterrainsettings.h>
 #include <qgsdistancearea.h>
 #include <qgsfeature.h>
 #include <qgsfeatureiterator.h>
