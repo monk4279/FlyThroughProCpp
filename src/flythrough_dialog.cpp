@@ -1,6 +1,5 @@
 #include "flythrough_dialog.h"
 #include "flythrough_core.h"
-// #include <3d/qgs3dmapcanvas.h>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -8,9 +7,10 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
-// #include <QPointer>
+#include <QPointer>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <qgis/qgs3dmapcanvas.h>
 #include <qgsmaplayercombobox.h>
 #include <qgsmaplayerproxymodel.h>
 #include <qgsproject.h>

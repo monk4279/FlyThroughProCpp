@@ -1,133 +1,765 @@
 #include "flythrough_core.h"
+#include <QApplication>
 #include <QDebug>
+#include <QMessageBox>
 #include <QtMath>
-#include <qgscoordinatetransform.h>
-#include <qgsdistancearea.h>
-#include <qgsproject.h>
-#include <qgsrasteridentifyresult.h>
-#include <qgsrasterlayer.h>
-#include <qgsvectorlayer.h>
+#include <qgis/qgs3dmapcanvas.h>
+#include <qgis/qgs3dmapsettings.h>
+#include <qgis/qgsapplication.h>
+#include <qgis/qgscameracontroller.h>
+#include <qgis/qgscamerapose.h>
+#include <qgis/qgscoordinatetransform.h>
+#include <qgis/qgsdemterrainsettings.h>
+#include <qgis/qgsdistancearea.h>
+#include <qgis/qgsfeature.h>
+#include <qgis/qgsfeatureiterator.h>
+#include <qgis/qgsgeometryutils.h>
+#include <qgis/qgslayertree.h>
+#include <qgis/qgsmaplayer.h>
+#include <qgis/qgsmessagebar.h>
+#include <qgis/qgsproject.h>
+#include <qgis/qgsrasteridentifyresult.h>
+#include <qgis/qgsrasterlayer.h>
+#include <qgis/qgsvectorlayer.h>
+#include <qgis/qgswkbtypes.h>
+#include <qgisinterface.h>
 
-FlyThroughCore::FlyThroughCore(QObject *parent) : QObject(parent) {}
+FlyThroughCore::FlyThroughCore(QgisInterface *iface, QObject *parent)
+    : QObject(parent), mIface(iface) {}
 
-bool FlyThroughCore::generateKeyframes(QgsVectorLayer *pathLayer,
-                                       QgsRasterLayer *demLayer,
-                                       double speedKmh, double altitudeOffset,
-                                       double pitch, bool useBanking) {
-  mKeyframes.clear();
+FlyThroughCore::~FlyThroughCore() { close3DCanvas(); }
 
-  if (!pathLayer || !demLayer)
+bool FlyThroughCore::generateFlythrough(const FlythroughParams &params) {
+  try {
+    // Validate inputs
+    if (!params.demLayer || !params.pathLayer) {
+      QMessageBox::warning(nullptr, "Missing Layers",
+                           "Please select both DEM and path layers.");
+      return false;
+    }
+
+    // Extract path vertices
+    QList<QgsPointXY> vertices = extractPathVertices(params.pathLayer);
+    if (vertices.size() < 2) {
+      QMessageBox::warning(nullptr, "Invalid Path",
+                           "Path must have at least 2 vertices.");
+      return false;
+    }
+
+    qDebug() << "[FTP] Path has" << vertices.size() << "vertices";
+
+    // Setup 3D canvas first (needed for CRS determination)
+    if (!setup3DCanvas(params, vertices.first())) {
+      return false;
+    }
+
+    // Transform vertices to View CRS
+    QgsCoordinateReferenceSystem viewCRS = mMapSettings3D->crs();
+    QgsCoordinateReferenceSystem pathCRS = params.pathLayer->crs();
+
+    if (pathCRS != viewCRS) {
+      qDebug() << "[FTP] Transforming path from" << pathCRS.authid() << "to"
+               << viewCRS.authid();
+      QgsCoordinateTransform xform(pathCRS, viewCRS, QgsProject::instance());
+      for (int i = 0; i < vertices.size(); ++i) {
+        vertices[i] = xform.transform(vertices[i]);
+      }
+    }
+
+    // Generate keyframes
+    generateKeyframes(vertices, params);
+
+    if (mKeyframes.empty()) {
+      QMessageBox::warning(nullptr, "Error", "Failed to generate keyframes.");
+      return false;
+    }
+
+    // Setup animation
+    setupAnimation(params);
+
+    mIface->messageBar()->pushMessage("Flythrough Pro",
+                                      "Animation started – watch the 3D view!",
+                                      Qgis::MessageLevel::Info, 5);
+
+    return true;
+
+  } catch (const std::exception &e) {
+    QMessageBox::critical(nullptr, "Error",
+                          QString("An error occurred: %1").arg(e.what()));
     return false;
+  }
+}
 
-  // 1. Extract and Densify Path
-  QgsGeometry pathGeom;
-  // Iterate features (take first for now)
-  QgsFeatureIterator it = pathLayer->getFeatures();
-  QgsFeature fet;
-  if (it.nextFeature(fet)) {
-    pathGeom = fet.geometry();
+void FlyThroughCore::stopAnimation() {
+  if (mAnimTimer) {
+    mAnimTimer->stop();
+    mAnimTimer->deleteLater();
+    mAnimTimer = nullptr;
+  }
+}
+
+bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
+                                   const QgsPointXY &startPoint) {
+  // Store params
+  mCameraHeight = params.cameraHeight;
+  mLookaheadDist = params.lookaheadDistance;
+  mPitchAngle = params.cameraPitch;
+  mVerticalScale = params.verticalExaggeration;
+  mDemLayer = params.demLayer;
+
+  // Close existing canvas
+  close3DCanvas();
+
+  // Try to createFrom interface (QGIS 3.30+) or find existing
+  mCanvas3D = nullptr;
+
+  if (mIface->metaObject()->indexOfMethod("createNewMapCanvas3D(QString)") >=
+      0) {
+    // Call dynamically
+    QMetaObject::invokeMethod(mIface, "createNewMapCanvas3D",
+                              Q_RETURN_ARG(Qgs3DMapCanvas *, mCanvas3D),
+                              Q_ARG(QString, "Flythrough Pro"));
   }
 
-  if (pathGeom.isEmpty())
+  if (!mCanvas3D) {
+    qDebug() << "[FTP] Creating 3D canvas failed or unsupported. Searching for "
+                "existing...";
+    mCanvas3D = findExisting3DCanvas();
+  }
+
+  if (!mCanvas3D) {
+    QMessageBox::warning(mIface->mainWindow(), "3D View Required",
+                         "This version of QGIS does not support creating 3D "
+                         "views programmatically.\n\n"
+                         "Please open a 3D Map View manually:\n"
+                         "View → 3D Map Views → New 3D Map View\n\n"
+                         "Then try generating again.");
     return false;
+  }
 
-  // Densify to ensure smooth follow
-  QgsGeometry denseGeom = densifyPath(pathGeom, 10.0); // 10 meters interval
+  // Let scene initialize
+  for (int i = 0; i < 20; ++i) {
+    QApplication::processEvents();
+    QThread::msleep(50);
+  }
 
-  // 2. Traverse coordinates
-  auto vertices = denseGeom.vertices();
-  if (vertices.hasNext()) {
-    QgsPointXY prevPt;
-    bool first = true;
-    double currentTime = 0.0;
-    double speedMs = speedKmh * 1000.0 / 3600.0;
-    if (speedMs <= 0)
-      speedMs = 10.0;
-    QgsDistanceArea da;
-    da.setSourceCrs(pathLayer->crs(),
-                    QgsProject::instance()->transformContext());
-    da.setEllipsoid(QgsProject::instance()->ellipsoid());
+  // Get settings
+  mMapSettings3D = mCanvas3D->mapSettings();
 
-    // We need previous vertex to calc distance
-    QgsPoint vertexPos;
-    QgsPoint prevVertexPos;
+  if (!mMapSettings3D) {
+    qDebug() << "[FTP] mapSettings() is nullptr, attempting to create...";
+    mMapSettings3D = new Qgs3DMapSettings();
+    mCanvas3D->setMapSettings(mMapSettings3D);
+  }
 
-    while (vertices.hasNext()) {
-      vertexPos = vertices.next();
-      QgsPointXY pt(vertexPos.x(), vertexPos.y());
+  if (!mMapSettings3D) {
+    QMessageBox::critical(nullptr, "Error",
+                          "3D canvas has no map settings – please open a 3D "
+                          "view manually first.");
+    return false;
+  }
 
-      if (first) {
-        prevPt = pt;
-        prevVertexPos = vertexPos;
-        first = false;
-      } else {
-        double dist = da.measureLine(prevPt, pt);
-        currentTime += dist / speedMs;
-      }
+  // Configure terrain
+  QgsDemTerrainSettings terrainSettings;
+  terrainSettings.setLayer(params.demLayer);
+  mMapSettings3D->setTerrainSettings(terrainSettings);
+  mMapSettings3D->setTerrainVerticalScale(params.verticalExaggeration);
 
-      // 3. Sample Elevation
-      double terraZ = getElevation(demLayer, pt);
-      double camZ = terraZ + altitudeOffset;
+  // CRS handling
+  QgsCoordinateReferenceSystem projectCRS = QgsProject::instance()->crs();
+  if (projectCRS.isGeographic()) {
+    // Force EPSG:3857 for geographic projects
+    QgsCoordinateReferenceSystem mercator("EPSG:3857");
+    mMapSettings3D->setCrs(mercator);
+    qDebug() << "[FTP] Project is Geographic, setting 3D View to EPSG:3857";
+  } else {
+    mMapSettings3D->setCrs(projectCRS);
+  }
 
-      // 4. Calculate Yaw (Bearing)
-      double yaw = 0;
-      if (currentTime > 0) {
-        yaw = calculateBearing(prevPt, pt);
-      }
+  // Set origin (transform start point if needed)
+  QgsPointXY origin = startPoint;
+  if (projectCRS != mMapSettings3D->crs() && projectCRS.isGeographic()) {
+    QgsCoordinateTransform ct(projectCRS, mMapSettings3D->crs(),
+                              QgsProject::instance());
+    origin = ct.transform(startPoint);
+  }
 
-      CameraKeyframe kf;
-      kf.time = currentTime;
-      kf.position =
-          QgsVector3D(pt.x(), pt.y(),
-                      camZ); // Note: 3D scene usually X, Z(up), -Y? OR X, Y, Z?
-      // QGIS 3D API uses QgsVector3D(x, y, z) where Z is up in map coordinates.
+  mMapSettings3D->setOrigin(QgsVector3D(origin.x(), origin.y(), 0));
 
-      kf.yaw = yaw;
-      kf.pitch = pitch;
-      kf.roll = 0; // TODO: Implement banking logic
+  // Set extent
+  QgsRectangle extent = params.demLayer->extent();
+  if (projectCRS != params.demLayer->crs()) {
+    QgsCoordinateTransform ct(projectCRS, params.demLayer->crs(),
+                              QgsProject::instance());
+    extent = ct.transformBoundingBox(extent);
+  }
+  mMapSettings3D->setExtent(extent);
 
-      mKeyframes.push_back(kf);
+  // Layers
+  QList<QgsMapLayer *> layers =
+      QgsProject::instance()->layerTreeRoot()->layerOrder();
+  if (params.overlayLayer && !layers.contains(params.overlayLayer)) {
+    layers.append(params.overlayLayer);
+  }
+  mMapSettings3D->setLayers(layers);
 
-      prevPt = pt;
+  // Rendering options
+  mMapSettings3D->setTerrainShadingEnabled(params.terrainShading);
+  mMapSettings3D->setFieldOfView(params.fieldOfView);
+
+  // Show canvas
+  mCanvas3D->resize(1280, 720);
+  mCanvas3D->show();
+
+  qDebug() << "[FTP] 3D Canvas initialized. Origin:" << origin.toString();
+
+  // Let terrain tiles load
+  for (int i = 0; i < 40; ++i) {
+    QApplication::processEvents();
+    QThread::msleep(50);
+  }
+
+  mProjectCRS = mMapSettings3D->crs();
+  return true;
+}
+
+Qgs3DMapCanvas *FlyThroughCore::findExisting3DCanvas() {
+  // Search for existing 3D canvas widget
+  QList<QWidget *> candidates = QApplication::topLevelWidgets();
+
+  for (QWidget *widget : candidates) {
+    if (!widget)
+      continue;
+
+    if (widget->metaObject()->className() == QString("Qgs3DMapCanvas")) {
+      return qobject_cast<Qgs3DMapCanvas *>(widget);
     }
+
+    // Search in dock widgets
+    QList<Qgs3DMapCanvas *> canvases = widget->findChildren<Qgs3DMapCanvas *>();
+    if (!canvases.isEmpty()) {
+      return canvases.first();
+    }
+  }
+
+  return nullptr;
+}
+
+void FlyThroughCore::close3DCanvas() {
+  if (mAnimTimer) {
+    mAnimTimer->stop();
+    mAnimTimer->deleteLater();
+    mAnimTimer = nullptr;
+  }
+
+  if (mCanvas3D) {
+    qDebug() << "[FTP] Closing 3D canvas...";
+    mCanvas3D->close();
+    mCanvas3D->deleteLater();
+    mCanvas3D = nullptr;
+
+    for (int i = 0; i < 5; ++i) {
+      QApplication::processEvents();
+    }
+  }
+}
+
+QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
+  QList<QgsPointXY> vertices;
+
+  QgsFeatureIterator it = layer->getFeatures();
+  QgsFeature feature;
+
+  while (it.nextFeature(feature)) {
+    QgsGeometry geom = feature.geometry();
+
+    if (geom.type() == QgsWkbTypes::LineGeometry) {
+      if (geom.isMultipart()) {
+        QgsMultiPolylineXY multiLine = geom.asMultiPolyline();
+        for (const QgsPolylineXY &line : multiLine) {
+          vertices.append(line);
+        }
+      } else {
+        vertices.append(geom.asPolyline());
+      }
+    } else if (geom.type() == QgsWkbTypes::PointGeometry) {
+      if (geom.isMultipart()) {
+        vertices.append(geom.asMultiPoint());
+      } else {
+        vertices.append(geom.asPoint());
+      }
+    }
+  }
+
+  return vertices;
+}
+
+QList<QgsPointXY> FlyThroughCore::densifyPath(const QList<QgsPointXY> &vertices,
+                                              double interval) {
+  if (vertices.size() < 2)
+    return vertices;
+
+  QList<QgsPointXY> dense;
+  dense.append(vertices.first());
+
+  for (int i = 0; i < vertices.size() - 1; ++i) {
+    const QgsPointXY &p1 = vertices[i];
+    const QgsPointXY &p2 = vertices[i + 1];
+
+    double dist = calculateDistance(p1, p2);
+    if (dist <= interval) {
+      dense.append(p2);
+      continue;
+    }
+
+    int numSegments = qCeil(dist / interval);
+    double dx = (p2.x() - p1.x()) / numSegments;
+    double dy = (p2.y() - p1.y()) / numSegments;
+
+    for (int j = 1; j <= numSegments; ++j) {
+      dense.append(QgsPointXY(p1.x() + dx * j, p1.y() + dy * j));
+    }
+  }
+
+  return dense;
+}
+
+QList<QgsPointXY> FlyThroughCore::smoothPath(const QList<QgsPointXY> &vertices,
+                                             int iterations) {
+  if (iterations <= 0 || vertices.size() < 3)
+    return vertices;
+
+  QList<QgsPointXY> smoothed = vertices;
+
+  for (int iter = 0; iter < iterations; ++iter) {
+    QList<QgsPointXY> newSmoothed;
+    newSmoothed.append(smoothed.first()); // Keep first
+
+    for (int i = 1; i < smoothed.size() - 1; ++i) {
+      double newX =
+          (smoothed[i - 1].x() + smoothed[i].x() + smoothed[i + 1].x()) / 3.0;
+      double newY =
+          (smoothed[i - 1].y() + smoothed[i].y() + smoothed[i + 1].y()) / 3.0;
+      newSmoothed.append(QgsPointXY(newX, newY));
+    }
+
+    newSmoothed.append(smoothed.last()); // Keep last
+    smoothed = newSmoothed;
+  }
+
+  return smoothed;
+}
+
+void FlyThroughCore::generateKeyframes(const QList<QgsPointXY> &inputVertices,
+                                       const FlythroughParams &params) {
+  mKeyframes.clear();
+
+  // Smooth path if requested
+  QList<QgsPointXY> vertices = smoothPath(inputVertices, params.smoothing);
+
+  // Find max elevation for "Above Safe Path" mode
+  double maxElev = -9999.0;
+  QList<QgsPointXY> densePoints = densifyPath(vertices, 2.0);
+
+  for (const QgsPointXY &pt : densePoints) {
+    double elev = getElevationAtPoint(params.demLayer, pt, mProjectCRS);
+    if (elev > maxElev) {
+      maxElev = elev;
+    }
+  }
+
+  if (maxElev == -9999.0) {
+    maxElev = 0.0;
+  }
+
+  double maxElevScaled = maxElev * params.verticalExaggeration;
+  qDebug() << "[FTP] Path Max Elevation:" << maxElev
+           << "Scaled:" << maxElevScaled;
+
+  // Calculate fixed Z based on altitude mode
+  double autoFixedZ = 0.0;
+  double userFixedAMSL = 0.0;
+
+  if (params.altitudeMode.contains("Safe Path")) {
+    autoFixedZ = (maxElev + params.cameraHeight) * params.verticalExaggeration;
+    qDebug() << "[FTP] Mode 'Safe Path': Fixed Z =" << autoFixedZ;
+  } else if (params.altitudeMode.contains("Fixed")) {
+    userFixedAMSL = params.cameraHeight * params.verticalExaggeration;
+    qDebug() << "[FTP] Mode 'Fixed AMSL': Z =" << userFixedAMSL;
+
+    if (userFixedAMSL < maxElevScaled) {
+      qDebug() << "[FTP] WARNING: User AMSL lower than terrain peak!";
+    }
+  }
+
+  // Generate keyframes
+  double currentTime = 0.0;
+  double previousBearing = 0.0;
+
+  for (int i = 0; i < vertices.size(); ++i) {
+    const QgsPointXY &point = vertices[i];
+
+    // Get elevation
+    double elevation = getElevationAtPoint(params.demLayer, point, mProjectCRS);
+    double scaledElevation = elevation * params.verticalExaggeration;
+
+    // Calculate altitude
+    double targetZ = 0.0;
+    if (params.altitudeMode.contains("Safe Path")) {
+      targetZ = autoFixedZ;
+    } else if (params.altitudeMode.contains("Fixed")) {
+      targetZ = userFixedAMSL;
+    } else {
+      targetZ =
+          scaledElevation + (params.cameraHeight * params.verticalExaggeration);
+    }
+
+    double cameraZ = targetZ;
+
+    // Calculate yaw (heading)
+    double yaw = 0.0;
+    if (i < vertices.size() - 1) {
+      yaw = calculateBearing(vertices[i], vertices[i + 1]);
+    } else {
+      yaw = previousBearing;
+    }
+
+    // Calculate banking (roll)
+    double roll = 0.0;
+    if (params.enableBanking && i > 0 && i < vertices.size() - 1) {
+      double bearingIn = calculateBearing(vertices[i - 1], vertices[i]);
+      double bearingOut = calculateBearing(vertices[i], vertices[i + 1]);
+
+      double turnAngle = bearingOut - bearingIn;
+      while (turnAngle > 180.0)
+        turnAngle -= 360.0;
+      while (turnAngle < -180.0)
+        turnAngle += 360.0;
+
+      roll = -turnAngle * params.bankingFactor;
+      roll = qMax(-45.0, qMin(45.0, roll));
+    }
+
+    // Create keyframe
+    Keyframe kf;
+    kf.time = currentTime;
+    kf.x = point.x();
+    kf.y = point.y();
+    kf.z = cameraZ;
+    kf.ground_z = scaledElevation;
+    kf.yaw = yaw;
+    kf.pitch = params.cameraPitch;
+    kf.roll = roll;
+
+    mKeyframes.push_back(kf);
+
+    if (i == 0 || i == vertices.size() - 1) {
+      qDebug()
+          << QString(
+                 "[FTP] Keyframe[%1]: x=%2, y=%3, elev=%4, cam_z=%5, yaw=%6")
+                 .arg(i)
+                 .arg(point.x(), 0, 'f', 1)
+                 .arg(point.y(), 0, 'f', 1)
+                 .arg(elevation, 0, 'f', 1)
+                 .arg(cameraZ, 0, 'f', 1)
+                 .arg(yaw, 0, 'f', 1);
+    }
+
+    // Update time
+    if (i < vertices.size() - 1) {
+      double segmentDistance = calculateDistance(vertices[i], vertices[i + 1]);
+      double segmentDuration = segmentDistance / params.speed;
+      currentTime += segmentDuration;
+    }
+
+    previousBearing = yaw;
   }
 
   if (!mKeyframes.empty()) {
     mTotalDuration = mKeyframes.back().time;
   }
 
-  return !mKeyframes.empty();
+  qDebug() << "[FTP] Generated" << mKeyframes.size()
+           << "keyframes, duration:" << mTotalDuration << "s";
 }
 
-QgsGeometry FlyThroughCore::densifyPath(const QgsGeometry &geom,
-                                        double interval) {
-  // Simple densification wrapper
-  return geom.densifyByDistance(interval);
-}
+double FlyThroughCore::getElevationAtPoint(
+    QgsRasterLayer *dem, const QgsPointXY &point,
+    const QgsCoordinateReferenceSystem &sourceCRS) {
+  if (!dem)
+    return 0.0;
 
-double FlyThroughCore::getElevation(QgsRasterLayer *dem,
-                                    const QgsPointXY &point) {
-  // Transform point if needed? Assuming project CRS context handling handled
-  // outside for now Ideally should verify CRS matches.
+  QgsCoordinateReferenceSystem demCRS = dem->crs();
+  QgsPointXY samplePoint = point;
 
+  // Transform if needed
+  if (sourceCRS != demCRS) {
+    QgsCoordinateTransform ct(sourceCRS, demCRS, QgsProject::instance());
+    try {
+      samplePoint = ct.transform(point);
+    } catch (...) {
+      return 0.0;
+    }
+  }
+
+  // Check extent
+  if (!dem->extent().contains(samplePoint)) {
+    return 0.0;
+  }
+
+  // Sample raster
   QgsRasterDataProvider *provider = dem->dataProvider();
   if (!provider)
     return 0.0;
 
-  QgsPointXY samplePt = point;
-  // Use older API for QGIS 3.28 compatibility
   QgsRasterIdentifyResult result =
-      provider->identify(samplePt, QgsRaster::IdentifyFormatValue);
+      provider->identify(samplePoint, QgsRaster::IdentifyFormatValue);
   if (result.isValid()) {
     QMap<int, QVariant> results = result.results();
-    if (results.contains(1)) { // Band 1
+    if (results.contains(1)) {
       bool ok;
       double val = results[1].toDouble(&ok);
       if (ok)
         return val;
     }
   }
+
   return 0.0;
+}
+
+void FlyThroughCore::setupAnimation(const FlythroughParams &params) {
+  if (mKeyframes.empty()) {
+    qDebug() << "[FTP] No keyframes to animate!";
+    return;
+  }
+
+  // Stop existing timer
+  if (mAnimTimer) {
+    mAnimTimer->stop();
+    mAnimTimer->deleteLater();
+  }
+
+  // Initialize animation state
+  mAnimIndex = 0;
+  mAnimElapsed = 0.0;
+  mAnimIntervalMs = 1000 / params.fps;
+  mAnimDt = mAnimIntervalMs / 1000.0;
+
+  qDebug() << "[FTP] Total keyframes:" << mKeyframes.size();
+  qDebug() << "[FTP] Total duration:" << mTotalDuration << "s";
+  qDebug() << "[FTP] FPS:" << params.fps << "Interval:" << mAnimIntervalMs
+           << "ms";
+
+  // Move to first keyframe
+  const Keyframe &kf0 = mKeyframes[0];
+  const Keyframe &kf1 = (mKeyframes.size() > 1) ? mKeyframes[1] : kf0;
+
+  moveCamera(kf0.x, kf0.y, kf0.ground_z, kf0.yaw, kf0.pitch, kf1.x, kf1.y,
+             kf1.ground_z, kf0.z);
+
+  // Let tiles load
+  for (int i = 0; i < 60; ++i) {
+    QApplication::processEvents();
+    QThread::msleep(50);
+  }
+
+  // Re-position after loading
+  moveCamera(kf0.x, kf0.y, kf0.ground_z, kf0.yaw, kf0.pitch, kf1.x, kf1.y,
+             kf1.ground_z, kf0.z);
+  QApplication::processEvents();
+
+  // Create timer
+  mAnimTimer = new QTimer(this);
+  mAnimTimer->setInterval(mAnimIntervalMs);
+  connect(mAnimTimer, &QTimer::timeout, this,
+          &FlyThroughCore::advanceAnimation);
+  mAnimTimer->start();
+
+  qDebug() << "[FTP] Animation timer started.";
+}
+
+void FlyThroughCore::advanceAnimation() {
+  if (mKeyframes.empty() || mAnimIndex >= (int)mKeyframes.size() - 1) {
+    if (mAnimTimer) {
+      mAnimTimer->stop();
+      qDebug() << "[FTP] Animation finished.";
+    }
+    return;
+  }
+
+  const Keyframe &kfA = mKeyframes[mAnimIndex];
+  const Keyframe &kfB = mKeyframes[mAnimIndex + 1];
+  bool hasNext = (mAnimIndex + 2) < (int)mKeyframes.size();
+  const Keyframe &kfC = hasNext ? mKeyframes[mAnimIndex + 2] : kfB;
+
+  double segDuration = kfB.time - kfA.time;
+  if (segDuration <= 0)
+    segDuration = 0.001;
+
+  double localT = (mAnimElapsed - kfA.time) / segDuration;
+  localT = qMax(0.0, qMin(1.0, localT));
+
+  // Smoothstep interpolation
+  double t = localT * localT * (3.0 - 2.0 * localT);
+
+  // Interpolate position
+  double x = kfA.x + (kfB.x - kfA.x) * t;
+  double y = kfA.y + (kfB.y - kfA.y) * t;
+  double groundZ = kfA.ground_z + (kfB.ground_z - kfA.ground_z) * t;
+  double interpZ = kfA.z + (kfB.z - kfA.z) * t;
+
+  // Interpolate angles
+  double yaw = lerpAngle(kfA.yaw, kfB.yaw, t);
+  double pitch = kfA.pitch + (kfB.pitch - kfA.pitch) * t;
+
+  // Look-ahead target: smooth pan to kfC in last 20%
+  double targetX, targetY, targetGz;
+  if (hasNext && t > 0.8) {
+    double blend = (t - 0.8) / 0.2;
+    targetX = kfB.x + (kfC.x - kfB.x) * blend;
+    targetY = kfB.y + (kfC.y - kfB.y) * blend;
+    targetGz = kfB.ground_z + (kfC.ground_z - kfB.ground_z) * blend;
+  } else {
+    targetX = kfB.x;
+    targetY = kfB.y;
+    targetGz = kfB.ground_z;
+  }
+
+  moveCamera(x, y, groundZ, yaw, pitch, targetX, targetY, targetGz, interpZ);
+  QApplication::processEvents();
+
+  mAnimElapsed += mAnimDt;
+  if (mAnimElapsed >= kfB.time) {
+    mAnimIndex++;
+  }
+}
+
+void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
+                                double pitchParam, double lookX, double lookY,
+                                double lookGz, double absoluteZ) {
+  if (!mCanvas3D)
+    return;
+
+  QgsCameraController *cameraCtrl = mCanvas3D->cameraController();
+  if (!cameraCtrl)
+    return;
+
+  // Calculate look-ahead vector
+  double camHeight = mCameraHeight;
+  double lookAhead = mLookaheadDist;
+
+  double dx = lookX - x;
+  double dy = lookY - y;
+  double rawDist = qSqrt(dx * dx + dy * dy);
+
+  double dxScaled = dx;
+  double dyScaled = dy;
+  double aheadGz = lookGz;
+
+  if (rawDist > 1.0) {
+    double scale = qMin(1.0, lookAhead / rawDist);
+    dxScaled = dx * scale;
+    dyScaled = dy * scale;
+    aheadGz = groundZ + (lookGz - groundZ) * scale;
+  } else {
+    // Fallback to yaw
+    double rad = qDegreesToRadians(yaw);
+    dxScaled = lookAhead * qSin(rad);
+    dyScaled = lookAhead * qCos(rad);
+    aheadGz = groundZ;
+  }
+
+  double finalX = x + dxScaled;
+  double finalY = y + dyScaled;
+
+  // Sample actual terrain at look-at point
+  if (mDemLayer) {
+    double sampledZ =
+        getElevationAtPoint(mDemLayer, QgsPointXY(finalX, finalY), mProjectCRS);
+    if (sampledZ > aheadGz) {
+      aheadGz = sampledZ;
+    }
+  }
+
+  double camZ = absoluteZ;
+
+  // Calculate vertical offset from pitch
+  double horizM = qSqrt(dxScaled * dxScaled + dyScaled * dyScaled);
+  double pitchRad = qDegreesToRadians(pitchParam);
+  double verticalOffset = horizM * qTan(pitchRad);
+  double finalZ = camZ + verticalOffset;
+
+  // Prevent looking underground
+  if (finalZ < aheadGz) {
+    double vertDiff = camZ - aheadGz;
+    if (vertDiff > 0 && qAbs(pitchParam) > 1.0) {
+      double reqHorizM = vertDiff / qTan(qDegreesToRadians(qAbs(pitchParam)));
+      if (horizM > 0.1) {
+        double scaleDown = reqHorizM / horizM;
+        if (scaleDown < 1.0) {
+          dxScaled *= scaleDown;
+          dyScaled *= scaleDown;
+          finalX = x + dxScaled;
+          finalY = y + dyScaled;
+          finalZ = aheadGz;
+          horizM = reqHorizM;
+        }
+      }
+    }
+  }
+
+  // Safety check
+  if (camZ < groundZ + 1.0) {
+    camZ = groundZ + 10.0;
+  }
+
+  // Calculate camera parameters
+  double vert = camZ - finalZ;
+  double dist = qSqrt(horizM * horizM + vert * vert);
+  if (dist < 1.0)
+    dist = camHeight;
+
+  double orbPitch =
+      (horizM < 0.001) ? 0.0 : qRadiansToDegrees(qAtan2(vert, horizM));
+  orbPitch = qMax(0.0, qMin(180.0, orbPitch));
+
+  double bear = qRadiansToDegrees(qAtan2(dxScaled, dyScaled));
+  double orbYaw = fmod(360.0 - bear, 360.0);
+
+  QgsVector3D mapPt(finalX, finalY, finalZ);
+
+  // Set camera using version-compatible API
+  if (cameraCtrl->metaObject()->indexOfMethod(
+          "setLookingAtMapPoint(QgsVector3D,double,double,double)") >= 0) {
+    QMetaObject::invokeMethod(cameraCtrl, "setLookingAtMapPoint",
+                              Q_ARG(QgsVector3D, mapPt), Q_ARG(double, dist),
+                              Q_ARG(double, orbPitch), Q_ARG(double, orbYaw));
+  } else {
+    // Fallback: QgsCameraPose
+    QgsCameraPose pose;
+    pose.setCenterPoint(mapPt);
+    pose.setDistanceFromCenterPoint(dist);
+    pose.setPitchAngle(orbPitch);
+    pose.setHeadingAngle(orbYaw);
+    cameraCtrl->setCameraPose(pose);
+  }
+
+  // Debug first few frames
+  if (mDbgCount < 5) {
+    mDbgCount++;
+    qDebug()
+        << QString(
+               "[FTP] CAM #%1: pos=(%2,%3,%4) look=(%5,%6,%7) dist=%8 pitch=%9")
+               .arg(mDbgCount)
+               .arg(x, 0, 'f', 1)
+               .arg(y, 0, 'f', 1)
+               .arg(camZ, 0, 'f', 0)
+               .arg(finalX, 0, 'f', 1)
+               .arg(finalY, 0, 'f', 1)
+               .arg(finalZ, 0, 'f', 0)
+               .arg(dist, 0, 'f', 0)
+               .arg(orbPitch, 0, 'f', 1);
+  }
 }
 
 double FlyThroughCore::calculateBearing(const QgsPointXY &p1,
@@ -135,54 +767,22 @@ double FlyThroughCore::calculateBearing(const QgsPointXY &p1,
   double dx = p2.x() - p1.x();
   double dy = p2.y() - p1.y();
   double bearing = qRadiansToDegrees(qAtan2(dx, dy));
-  // Normalize to 0-360
-  if (bearing < 0)
-    bearing += 360.0;
-  return bearing;
+  return fmod(bearing + 360.0, 360.0);
 }
 
-CameraKeyframe FlyThroughCore::interpolate(double time) const {
-  CameraKeyframe result;
-  if (mKeyframes.empty())
-    return result;
-
-  if (time <= 0)
-    return mKeyframes.front();
-  if (time >= mTotalDuration)
-    return mKeyframes.back();
-
-  // Find segment
-  // Linear scan for now (optimize with binary search later)
-  size_t idx = 0;
-  while (idx < mKeyframes.size() - 1 && mKeyframes[idx + 1].time < time) {
-    idx++;
-  }
-
-  const CameraKeyframe &k1 = mKeyframes[idx];
-  const CameraKeyframe &k2 = mKeyframes[idx + 1];
-
-  double t = (time - k1.time) / (k2.time - k1.time);
-
-  // Linear Interpolation
-  result.time = time;
-  result.position =
-      QgsVector3D(k1.position.x() + (k2.position.x() - k1.position.x()) * t,
-                  k1.position.y() + (k2.position.y() - k1.position.y()) * t,
-                  k1.position.z() + (k2.position.z() - k1.position.z()) * t);
-
-  result.pitch = k1.pitch + (k2.pitch - k1.pitch) * t;
-  result.yaw = lerpAngle(k1.yaw, k2.yaw, t);
-  result.roll = k1.roll + (k2.roll - k1.roll) * t;
-
-  return result;
+double FlyThroughCore::calculateDistance(const QgsPointXY &p1,
+                                         const QgsPointXY &p2) const {
+  QgsDistanceArea da;
+  da.setSourceCrs(mProjectCRS, QgsProject::instance()->transformContext());
+  da.setEllipsoid(QgsProject::instance()->ellipsoid());
+  return da.measureLine(p1, p2);
 }
 
 double FlyThroughCore::lerpAngle(double a, double b, double t) const {
   double diff = b - a;
-  // Shortest path interpolation
-  while (diff > 180)
-    diff -= 360;
-  while (diff < -180)
-    diff += 360;
-  return a + diff * t;
+  while (diff > 180.0)
+    diff -= 360.0;
+  while (diff < -180.0)
+    diff += 360.0;
+  return fmod(a + diff * t, 360.0);
 }
