@@ -22,7 +22,11 @@ void unload(QgisPlugin *plugin) { delete plugin; }
 
 // Class Implementation
 FlyThroughPlugin::FlyThroughPlugin(QgisInterface *iface)
-    : QObject(nullptr), QgisPlugin(name(), description(), category(), type()),
+    : QObject(nullptr),
+      QgisPlugin(QStringLiteral("FlyThrough Pro C++"),
+                 QStringLiteral("C++ accelerated 3D flythrough plugin"),
+                 QStringLiteral("0.1"), QStringLiteral("Plugins"),
+                 QgisPlugin::UI),
       mIface(iface) {}
 
 FlyThroughPlugin::~FlyThroughPlugin() {
