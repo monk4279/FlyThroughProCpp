@@ -37,16 +37,16 @@ void FlyThroughDialog::setupUi() {
   QFormLayout *basicLayout = new QFormLayout();
 
   mDemLayerCombo = new QgsMapLayerComboBox(this);
-  mDemLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer);
+  mDemLayerCombo->setFilters(QgsMapLayerProxyModel::Filter::RasterLayer);
   basicLayout->addRow("DEM Layer:", mDemLayerCombo);
 
   mPathLayerCombo = new QgsMapLayerComboBox(this);
-  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::VectorLayer);
+  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::Filter::VectorLayer);
   basicLayout->addRow("Path Layer:", mPathLayerCombo);
 
   mOverlayLayerCombo = new QgsMapLayerComboBox(this);
-  mOverlayLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer |
-                                 QgsMapLayerProxyModel::VectorLayer);
+  mOverlayLayerCombo->setFilters(QgsMapLayerProxyModel::Filter::RasterLayer |
+                                 QgsMapLayerProxyModel::Filter::VectorLayer);
   mOverlayLayerCombo->setAllowEmptyLayer(true);
   basicLayout->addRow("Overlay (optional):", mOverlayLayerCombo);
 

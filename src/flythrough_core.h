@@ -5,7 +5,9 @@
 #include <QObject>
 #include <QTimer>
 #include <qgis.h>
+#include <qgscoordinatereferencesystem.h>
 #include <qgsgeometry.h>
+#include <qgsmaplayer.h>
 #include <qgspointxy.h>
 #include <qgsraster.h>
 #include <qgsrectangle.h>
@@ -19,7 +21,6 @@ class Qgs3DMapSettings;
 class Qgs3DMapCanvas;
 class QgisInterface;
 class QgsCameraController;
-class QgsCoordinateReferenceSystem;
 
 struct Keyframe {
   double time;     // Seconds from start

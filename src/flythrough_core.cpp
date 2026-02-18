@@ -525,7 +525,7 @@ double FlyThroughCore::getElevationAtPoint(
     return 0.0;
 
   QgsRasterIdentifyResult result =
-      provider->identify(samplePoint, QgsRaster::IdentifyFormatValue);
+      provider->identify(samplePoint, Qgis::RasterIdentifyFormat::Value);
   if (result.isValid()) {
     QMap<int, QVariant> results = result.results();
     if (results.contains(1)) {
