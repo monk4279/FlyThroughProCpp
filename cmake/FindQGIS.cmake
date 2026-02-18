@@ -38,6 +38,7 @@ find_path(QGIS_INCLUDE_DIR NAMES qgsapplication.h
     "${QGIS_DIR}/include"
     "$ENV{OSGEO4W_ROOT}/include"
     "$ENV{OSGEO4W_ROOT}/apps/qgis/include"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/include"
     "C:/Program Files/QGIS 3.28.3/include"
     "C:/Program Files/QGIS 3.28.3/apps/qgis/include"
     "C:/Program Files/QGIS/include"
@@ -49,6 +50,11 @@ find_path(QGIS_INCLUDE_DIR NAMES qgsapplication.h
     /Applications/QGIS-LTR.app/Contents/Frameworks/qgis_core.framework/Headers
     /Applications/QGIS-LTR.app/Contents/Frameworks/qgis_gui.framework/Headers
 )
+
+# Add OSGeo4W qgis-ltr-dev paths explicitly
+if(NOT QGIS_INCLUDE_DIR AND EXISTS "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/include")
+  set(QGIS_INCLUDE_DIR "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/include")
+endif()
 
 # Look for libraries
 # Core
@@ -65,12 +71,22 @@ find_library(QGIS_CORE_LIBRARY NAMES qgis_core
 )
 
 # Gui
-find_library(QGIS_GUI_LIBRARY NAMES qgis_gui
+find_library(QGIS_GUI_LIBRARY
+  NAMES qgis_gui
   PATHS
-    /usr/lib
-    /usr/local/lib
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
+    "${QGIS_DIR}/lib"
+    "$ENV{OSGEO4W_ROOT}/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
+    "C:/Program Files/QGIS 3.28.3/lib"
+    "C:/Program Files/QGIS 3.28.3/apps/qgis/lib"
+    "C:/Program Files/QGIS/lib"
+    "C:/Program Files/QGIS/apps/qgis/lib"
+    /usr/lib
+    /usr/local/lib
     /opt/homebrew/opt/qgis/lib
     /usr/local/opt/qgis/lib
     /Applications/QGIS.app/Contents/Frameworks
@@ -78,26 +94,41 @@ find_library(QGIS_GUI_LIBRARY NAMES qgis_gui
 )
 
 # 3D
-find_library(QGIS_3D_LIBRARY NAMES qgis_3d
+find_library(QGIS_3D_LIBRARY
+  NAMES qgis_3d
   PATHS
-    /usr/lib
-    /usr/local/lib
     "$ENV{LIB_DIR}/lib"
     "$ENV{QGIS_DIR}/lib"
+    "${QGIS_DIR}/lib"
+    "$ENV{OSGEO4W_ROOT}/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr/lib"
+    "$ENV{OSGEO4W_ROOT}/apps/qgis-ltr-dev/lib"
+    "C:/Program Files/QGIS 3.28.3/lib"
+    "C:/Program Files/QGIS 3.28.3/apps/qgis/lib"
+    "C:/Program Files/QGIS/lib"
+    "C:/Program Files/QGIS/apps/qgis/lib"
+    /usr/lib
+    /usr/local/lib
     /opt/homebrew/opt/qgis/lib
     /usr/local/opt/qgis/lib
     /Applications/QGIS.app/Contents/Frameworks
     /Applications/QGIS-LTR.app/Contents/Frameworks
 )
 
-if (QGIS_INCLUDE_DIR AND QGIS_CORE_LIBRARY AND QGIS_GUI_LIBRARY)
-   set(QGIS_FOUND TRUE)
-endif ()
-
+# --- Debug Output ---
 message(STATUS "--- QGIS Discovery Debug ---")
+if(QGIS_CORE_LIBRARY AND QGIS_GUI_LIBRARY AND QGIS_INCLUDE_DIR)
+  set(QGIS_FOUND TRUE)
+  message(STATUS "QGIS FOUND!")
+else()
+  message(FATAL_ERROR "Could not find QGIS")
+endif()
+
 message(STATUS "QGIS_INCLUDE_DIR: ${QGIS_INCLUDE_DIR}")
 message(STATUS "QGIS_CORE_LIBRARY: ${QGIS_CORE_LIBRARY}")
 message(STATUS "QGIS_GUI_LIBRARY: ${QGIS_GUI_LIBRARY}")
+message(STATUS "QGIS_3D_LIBRARY: ${QGIS_3D_LIBRARY}")
 message(STATUS "Env QGIS_DIR: $ENV{QGIS_DIR}")
 
 if (QGIS_FOUND)

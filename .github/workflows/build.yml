@@ -47,6 +47,21 @@ jobs:
           echo Continuing with build...
         )
 
+    - name: Debug QGIS Installation Structure  
+      shell: cmd
+      run: |
+        echo === Checking QGIS Dev Installation ===
+        dir C:\OSGeo4W\apps\qgis-ltr-dev
+        echo.
+        echo === Include Directory ===
+        dir C:\OSGeo4W\apps\qgis-ltr-dev\include
+        echo.
+        echo === Lib Directory ===
+        dir C:\OSGeo4W\apps\qgis-ltr-dev\lib
+        echo.
+        echo === Bin Directory ===
+        dir C:\OSGeo4W\apps\qgis-ltr-dev\bin
+
     # --- Build Step (Windows with OSGeo4W) ---
     - name: Build QGIS Plugin
       shell: cmd
