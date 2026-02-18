@@ -8,13 +8,16 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
-#include <QPointer>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
-#include <qgis/qgs3dmapcanvas.h>
+#include <qgs3dmapcanvas.h>
+#include <qgsmaplayer.h>
 #include <qgsmaplayercombobox.h>
 #include <qgsmaplayerproxymodel.h>
+#include <qgsproject.h>
+#include <qgsrasterlayer.h>
+#include <qgsvectorlayer.h>
 
 FlyThroughDialog::FlyThroughDialog(QgisInterface *iface, QWidget *parent)
     : QDialog(parent), mIface(iface) {
