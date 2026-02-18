@@ -20,6 +20,14 @@ find_package(Qt5 COMPONENTS Core Gui Widgets Xml Network REQUIRED)
 find_package(QGIS REQUIRED)
 
 # Includes
+if(DEFINED ENV{QGIS_INCLUDE_DIR})
+    set(QGIS_INCLUDE_DIR $ENV{QGIS_INCLUDE_DIR})
+elseif(QGIS_INCLUDE_DIR)
+    # Use provided path
+else()
+    # Fallback to find_package result
+endif()
+
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${Qt5Core_INCLUDE_DIRS}
@@ -28,7 +36,7 @@ include_directories(
     ${Qt5Xml_INCLUDE_DIRS}
     ${Qt5Network_INCLUDE_DIRS}
     ${QGIS_INCLUDE_DIR}
-    ${QGIS_INCLUDE_DIR}/3d
+    ${QGIS_INCLUDE_DIR}/qgis
 )
 
 # Source files
