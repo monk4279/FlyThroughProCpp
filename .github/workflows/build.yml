@@ -29,9 +29,9 @@ jobs:
           --site http://download.osgeo.org/osgeo4w/v2 ^
           --packages qgis-ltr-dev,qt5-devel,cmake,ninja
         
-    - name: Wait for Installation
-      shell: cmd
-      run: timeout /t 120
+    - name: Wait for Installation to Complete
+      shell: pwsh
+      run: Start-Sleep -Seconds 30
       
     - name: Verify QGIS Installation
       shell: cmd
