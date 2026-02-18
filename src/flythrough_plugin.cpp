@@ -5,10 +5,10 @@
 #include <QMessageBox>
 
 // Metadata functions
-const QString name() { return "FlyThrough Pro C++"; }
-const QString description() { return "C++ accelerated 3D flythrough plugin"; }
-const QString version() { return "0.1"; }
-const QString category() { return "Plugins"; }
+const char *name() { return "FlyThrough Pro C++"; }
+const char *description() { return "C++ accelerated 3D flythrough plugin"; }
+const char *version() { return "0.1"; }
+const char *category() { return "Plugins"; }
 int type() { return QgisPlugin::UI; } // Type UI
 
 // Factory function

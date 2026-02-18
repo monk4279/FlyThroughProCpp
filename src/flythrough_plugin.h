@@ -31,10 +31,10 @@ private:
 #endif
 
 extern "C" {
-Q_DECL_EXPORT const QString name();
-Q_DECL_EXPORT const QString description();
-Q_DECL_EXPORT const QString version();
-Q_DECL_EXPORT const QString category();
+Q_DECL_EXPORT const char *name();
+Q_DECL_EXPORT const char *description();
+Q_DECL_EXPORT const char *version();
+Q_DECL_EXPORT const char *category();
 Q_DECL_EXPORT int type();
 Q_DECL_EXPORT void unload(FlyThroughPlugin *plugin);
 Q_DECL_EXPORT FlyThroughPlugin *classFactory(QgisInterface *iface);
