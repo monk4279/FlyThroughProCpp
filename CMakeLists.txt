@@ -28,6 +28,7 @@ include_directories(
     ${Qt5Xml_INCLUDE_DIRS}
     ${Qt5Network_INCLUDE_DIRS}
     ${QGIS_INCLUDE_DIR}
+    ${QGIS_INCLUDE_DIR}/3d
 )
 
 # Source files
