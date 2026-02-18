@@ -43,6 +43,14 @@ jobs:
         echo cmake --build . --config Release >> build.bat
         micromamba run -n qgis-dev build.bat
         
+    - name: Debug - Find 3D Headers
+      if: runner.os == 'Windows' && failure()
+      shell: cmd
+      run: |
+        echo "Searching for qgs3dmapcanvas.h..."
+        cd C:\Users\runneradmin\micromamba\envs\qgis-dev
+        dir /s /b qgs3dmapcanvas.h
+        
     - name: Inspect Dependencies (Debug Mismatch)
       if: runner.os == 'Windows'
       shell: cmd
