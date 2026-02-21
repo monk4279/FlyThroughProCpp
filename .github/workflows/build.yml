@@ -8,14 +8,17 @@ on:
 
 jobs:
   build:
-    name: Build on Windows (QGIS 3.28.3)
+    name: Build on Windows (QGIS 3.28 compatible)
     runs-on: windows-latest
  
     steps:
     - uses: actions/checkout@v4
 
     # --- Setup OSGeo4W with QGIS Development Tools ---
-    - name: Install OSGeo4W and QGIS 3.28
+    # Install qgis-ltr-dev for headers (needed to compile).
+    # Our code only uses API calls that exist in QGIS 3.28.3 (user's install),
+    # so the resulting DLL will load fine despite being compiled against dev headers.
+    - name: Install OSGeo4W and QGIS Dev Tools
       shell: cmd
       timeout-minutes: 15
       run: |
@@ -27,7 +30,7 @@ jobs:
           --autoaccept ^
           --root C:\OSGeo4W ^
           --site http://download.osgeo.org/osgeo4w/v2 ^
-          --packages qgis-ltr,qt5-devel,cmake,ninja
+          --packages qgis-ltr-dev,qt5-devel,cmake,ninja
         
     - name: Wait for Installation to Complete
       shell: pwsh
@@ -37,33 +40,12 @@ jobs:
       shell: cmd
       run: |
         set OSGEO4W_ROOT=C:\OSGeo4W
-        echo Checking QGIS installation...
-        dir "%OSGEO4W_ROOT%\apps\qgis-ltr"
-        if exist "%OSGEO4W_ROOT%\apps\qgis-ltr\bin\qgis.exe" (
-          echo QGIS LTR found!
-          "%OSGEO4W_ROOT%\apps\qgis-ltr\bin\qgis.exe" --version
-        ) else (
-          echo QGIS executable not found, but dev files should be present
-          echo Continuing with build...
-        )
-
-    - name: Debug QGIS Installation Structure  
-      shell: cmd
-      run: |
-        echo === Checking QGIS Dev Installation ===
-        dir C:\OSGeo4W\apps\qgis-ltr
-        echo.
-        echo === Include/qgis Directory ===
-        dir C:\OSGeo4W\apps\qgis-ltr\include\qgis
-        echo.
-        echo === qgsmaplayerproxymodel.h content ===
-        type C:\OSGeo4W\apps\qgis-ltr\include\qgis\qgsmaplayerproxymodel.h
-        echo.
-        echo === qgswkbtypes.h enum section ===
-        findstr /n "GeometryType\|LineGeometry\|PointGeometry\|enum" C:\OSGeo4W\apps\qgis-ltr\include\qgis\qgswkbtypes.h
-        echo.
-        echo === Lib Directory ===
-        dir C:\OSGeo4W\apps\qgis-ltr\lib
+        echo Checking QGIS installation structure...
+        dir "%OSGEO4W_ROOT%\apps\qgis-ltr\include\qgis" | findstr /i "qgsmaplayerproxymodel\|qgswkbtypes\|qgsraster"
+        echo === Checking old-style API in headers ===
+        findstr /n "IdentifyFormatValue\|IdentifyFormat" "%OSGEO4W_ROOT%\apps\qgis-ltr\include\qgis\qgsraster.h"
+        findstr /n "LineGeometry\|PointGeometry" "%OSGEO4W_ROOT%\apps\qgis-ltr\include\qgis\qgswkbtypes.h"
+        findstr /n "RasterLayer\|VectorLayer" "%OSGEO4W_ROOT%\apps\qgis-ltr\include\qgis\qgsmaplayerproxymodel.h"
 
     # --- Build Step (Windows with OSGeo4W) ---
     - name: Build QGIS Plugin
@@ -90,8 +72,11 @@ jobs:
       shell: cmd
       run: |
         call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        echo === Exported symbols from flythrough_pro_cpp.dll ===
-        dumpbin /exports D:\a\FlyThroughProCpp\FlyThroughProCpp\build\flythrough_pro_cpp.dll
+        echo === Exported symbols from plugin DLL ===
+        for /r .\build %%f in (*.dll) do (
+          echo --- %%f ---
+          dumpbin /exports "%%f"
+        )
 
     # --- Upload Artifacts ---
     - name: Upload Plugin
@@ -99,6 +84,6 @@ jobs:
       with:
         name: QGIS-Plugin-Windows-3.28
         path: |
-          build/flythrough_pro_cpp.dll
-          build/flythrough_pro_cpp.lib
-          build/flythrough_pro_cpp.exp
+          build/*.dll
+          build/*.lib
+          build/*.exp
