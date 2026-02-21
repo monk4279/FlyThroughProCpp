@@ -10,105 +10,84 @@ jobs:
   build:
     name: Build on Windows (QGIS 3.28 compatible)
     runs-on: windows-latest
- 
+
     steps:
     - uses: actions/checkout@v4
 
-    # --- Setup OSGeo4W with QGIS Development Tools ---
     - name: Install OSGeo4W and QGIS Dev Tools
       shell: cmd
       timeout-minutes: 15
       run: |
         curl -L -o osgeo4w-setup.exe http://download.osgeo.org/osgeo4w/v2/osgeo4w-setup.exe
-        osgeo4w-setup.exe ^
-          --quiet-mode ^
-          --no-desktop ^
-          --only-site ^
-          --autoaccept ^
-          --root C:\OSGeo4W ^
-          --site http://download.osgeo.org/osgeo4w/v2 ^
-          --packages qgis-ltr-dev,qt5-devel,cmake,ninja
-        
+        osgeo4w-setup.exe --quiet-mode --no-desktop --only-site --autoaccept --root C:\OSGeo4W --site http://download.osgeo.org/osgeo4w/v2 --packages qgis-ltr-dev,qt5-devel,cmake,ninja
+
     - name: Wait for Installation to Complete
       shell: pwsh
       run: Start-Sleep -Seconds 30
 
-    # Find the actual paths where QGIS headers ended up      
     - name: Discover QGIS Installation Paths
       shell: pwsh
       run: |
-        Write-Host "=== Top-level OSGeo4W\apps ==="
-        Get-ChildItem "C:\OSGeo4W\apps" -ErrorAction SilentlyContinue | Select-Object Name,LastWriteTime
+        Write-Host "=== Top-level OSGeo4W apps ==="
+        Get-ChildItem "C:\OSGeo4W\apps" -ErrorAction SilentlyContinue | Select-Object Name
 
-        Write-Host "`n=== Searching for qgisconfig.h (header root indicator) ==="
-        Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "qgisconfig.h" -ErrorAction SilentlyContinue | Select-Object FullName
-
-        Write-Host "`n=== Searching for qgsraster.h ==="
+        Write-Host "=== Searching for qgsraster.h ==="
         Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "qgsraster.h" -ErrorAction SilentlyContinue | Select-Object FullName
 
-        Write-Host "`n=== Searching for qgis_core.lib ==="
+        Write-Host "=== Searching for qgis_core.lib ==="
         Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "qgis_core.lib" -ErrorAction SilentlyContinue | Select-Object FullName
 
-        Write-Host "`n=== Searching for qgis_3d.lib ==="
-        Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "qgis_3d.lib" -ErrorAction SilentlyContinue | Select-Object FullName
+        Write-Host "=== Searching for Qt5Config.cmake ==="
+        Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "Qt5Config.cmake" -ErrorAction SilentlyContinue | Select-Object FullName
 
-    # --- Build Step (Windows with OSGeo4W) ---
-    - name: Build QGIS Plugin
+    - name: Find Paths and Write Build Script
       shell: pwsh
       run: |
         $OSGEO4W = "C:\OSGeo4W"
 
-        # Dynamically find header and lib paths
         $headerFile = Get-ChildItem "$OSGEO4W" -Recurse -Filter "qgsraster.h" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $headerFile) { Write-Error "Cannot find qgsraster.h!"; exit 1 }
+        if (-not $headerFile) { Write-Error "Cannot find qgsraster.h"; exit 1 }
         $QGIS_INCLUDE = $headerFile.Directory.FullName
-        Write-Host "Found QGIS headers at: $QGIS_INCLUDE"
+        Write-Host "QGIS headers: $QGIS_INCLUDE"
 
         $libFile = Get-ChildItem "$OSGEO4W" -Recurse -Filter "qgis_core.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $libFile) { Write-Error "Cannot find qgis_core.lib!"; exit 1 }
+        if (-not $libFile) { Write-Error "Cannot find qgis_core.lib"; exit 1 }
         $QGIS_LIB = $libFile.Directory.FullName
-        Write-Host "Found QGIS libs at: $QGIS_LIB"
+        Write-Host "QGIS libs: $QGIS_LIB"
 
-        # Find Qt5
         $qt5cmake = Get-ChildItem "$OSGEO4W" -Recurse -Filter "Qt5Config.cmake" -ErrorAction SilentlyContinue | Select-Object -First 1
         $Qt5_DIR = if ($qt5cmake) { $qt5cmake.Directory.FullName } else { "$OSGEO4W\apps\Qt5\lib\cmake\Qt5" }
-        Write-Host "Qt5 cmake dir: $Qt5_DIR"
+        Write-Host "Qt5 cmake: $Qt5_DIR"
 
-        # Setup MSVC
         $vcvars = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        
-        New-Item -ItemType Directory -Force -Path build | Out-Null
-        
-        $buildScript = @"
-        call "$vcvars"
-        set PATH=$OSGEO4W\bin;%PATH%
-        cd build
-        cmake .. -G "Ninja" ^
-          -DCMAKE_BUILD_TYPE=Release ^
-          -DCMAKE_PREFIX_PATH="$OSGEO4W" ^
-          -DQGIS_INCLUDE_DIR="$QGIS_INCLUDE" ^
-          -DQGIS_LIBRARY_DIR="$QGIS_LIB" ^
-          -DQt5_DIR="$Qt5_DIR"
-        if errorlevel 1 exit /b 1
-        cmake --build . --config Release
-        if errorlevel 1 exit /b 1
-"@
-        $buildScript | Out-File -FilePath "run_build.bat" -Encoding ASCII
-        cmd /c "run_build.bat"
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    # --- Show exactly what is exported from the DLL ---
+        $lines = @(
+          "call `"$vcvars`"",
+          "if errorlevel 1 exit /b 1",
+          "set PATH=$OSGEO4W\bin;%PATH%",
+          "mkdir build 2>nul",
+          "cd build",
+          "cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$OSGEO4W`" -DQGIS_INCLUDE_DIR=`"$QGIS_INCLUDE`" -DQGIS_LIBRARY_DIR=`"$QGIS_LIB`" -DQt5_DIR=`"$Qt5_DIR`"",
+          "if errorlevel 1 exit /b 1",
+          "cmake --build . --config Release",
+          "if errorlevel 1 exit /b 1"
+        )
+        $lines | Out-File -FilePath "run_build.bat" -Encoding ASCII
+        Write-Host "Build script written."
+
+    - name: Build QGIS Plugin
+      shell: cmd
+      run: run_build.bat
+
     - name: Inspect DLL Exports
-      shell: pwsh
+      shell: cmd
       run: |
-        $vcvars = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        Get-ChildItem -Path ".\build" -Filter "*.dll" -Recurse | ForEach-Object {
-          Write-Host "=== $($_.FullName) ==="
-          $script = "call `"$vcvars`" && dumpbin /exports `"$($_.FullName)`""
-          cmd /c $script
-        }
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        for /r .\build %%f in (*.dll) do (
+          echo === %%f ===
+          dumpbin /exports "%%f"
+        )
 
-    # --- Upload Artifacts ---
     - name: Upload Plugin
       uses: actions/upload-artifact@v4
       with:
