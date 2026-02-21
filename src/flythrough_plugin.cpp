@@ -1,52 +1,50 @@
 #include "flythrough_plugin.h"
 #include "flythrough_dialog.h"
-#include <QAction>
-#include <QIcon>
-#include <QMessageBox>
+#include <QMenu>
 
-// Static strings for pointer returns (QGIS dereferences these pointers)
-static const QString sName = QStringLiteral("FlyThrough Pro C++");
-static const QString sDescription =
-    QStringLiteral("C++ accelerated 3D flythrough plugin");
-static const QString sCategory = QStringLiteral("Plugins");
-
-// Metadata functions - return pointers to static QStrings
-// Matches QGIS typedefs: typedef const QString *name_t();
-const QString *name() { return &sName; }
-const QString *description() { return &sDescription; }
-const QString *category() { return &sCategory; }
-int type() { return QgisPlugin::UI; }
-
-// Factory function - QGIS resolves "classFactory" symbol
-QgisPlugin *classFactory(QgisInterface *iface) {
-  return new FlyThroughPlugin(iface);
-}
-
-// Unload function
-void unload(QgisPlugin *plugin) { delete plugin; }
-
-// Class Implementation
 FlyThroughPlugin::FlyThroughPlugin(QgisInterface *iface)
-    : QObject(nullptr), QgisPlugin(sName, sDescription, QStringLiteral("0.1"),
-                                   sCategory, QgisPlugin::UI),
+    : QgisPlugin(sName, sDescription, sCategory, sVersion, sPluginType),
       mIface(iface) {}
 
-FlyThroughPlugin::~FlyThroughPlugin() {}
-
 void FlyThroughPlugin::initGui() {
-  mAction = new QAction(QIcon(), "FlyThrough Pro C++", this);
+  mAction =
+      new QAction(QIcon(sIcon), QStringLiteral("FlyThrough Pro C++"), this);
   connect(mAction, &QAction::triggered, this, &FlyThroughPlugin::run);
-  mIface->addPluginToVectorMenu("FlyThrough Pro C++", mAction);
+  mIface->addPluginToVectorMenu(QStringLiteral("FlyThrough Pro C++"), mAction);
   mIface->addToolBarIcon(mAction);
 }
 
 void FlyThroughPlugin::unload() {
-  mIface->removePluginVectorMenu("FlyThrough Pro C++", mAction);
+  mIface->removePluginVectorMenu(QStringLiteral("FlyThrough Pro C++"), mAction);
   mIface->removeToolBarIcon(mAction);
   delete mAction;
+  mAction = nullptr;
 }
 
 void FlyThroughPlugin::run() {
   FlyThroughDialog dlg(mIface);
   dlg.exec();
 }
+
+//
+// Required QGIS plugin entry points - use QGISEXTERN (same as all built-in QGIS
+// plugins)
+//
+
+QGISEXTERN QgisPlugin *classFactory(QgisInterface *qgisInterfacePointer) {
+  return new FlyThroughPlugin(qgisInterfacePointer);
+}
+
+QGISEXTERN const QString *name() { return &sName; }
+
+QGISEXTERN const QString *description() { return &sDescription; }
+
+QGISEXTERN const QString *category() { return &sCategory; }
+
+QGISEXTERN int type() { return sPluginType; }
+
+QGISEXTERN const QString *version() { return &sVersion; }
+
+QGISEXTERN const QString *icon() { return &sIcon; }
+
+QGISEXTERN void unload(QgisPlugin *pluginPointer) { delete pluginPointer; }
