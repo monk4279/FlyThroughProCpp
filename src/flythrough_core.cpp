@@ -7,11 +7,11 @@
 #include <QtMath>
 #include <cmath>
 #include <qgisinterface.h>
-#include <qgs3dmapcanvas.h>
+// NOTE: Do NOT include qgs3dmapcanvas.h or qgscameracontroller.h here.
+// Those headers would cause linkage against symbols not in QGIS 3.28.3.
+// We use QMetaObject::invokeMethod for dynamic dispatch instead.
 #include <qgs3dmapsettings.h>
 #include <qgsapplication.h>
-#include <qgscameracontroller.h>
-#include <qgscamerapose.h>
 #include <qgscoordinatereferencesystem.h>
 #include <qgscoordinatetransform.h>
 #include <qgsdemterraingenerator.h>
@@ -120,10 +120,12 @@ bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
 
   if (mIface->metaObject()->indexOfMethod("createNewMapCanvas3D(QString)") >=
       0) {
-    // Call dynamically
-    QMetaObject::invokeMethod(mIface, "createNewMapCanvas3D",
-                              Q_RETURN_ARG(Qgs3DMapCanvas *, mCanvas3D),
-                              Q_ARG(QString, "Flythrough Pro"));
+    // Call dynamically - use QWidget* to avoid linking against Qgs3DMapCanvas
+    QWidget *newCanvas = nullptr;
+    QMetaObject::invokeMethod(
+        mIface, "createNewMapCanvas3D", Qt::DirectConnection,
+        Q_RETURN_ARG(QWidget *, newCanvas), Q_ARG(QString, "Flythrough Pro"));
+    mCanvas3D = newCanvas;
   }
 
   if (!mCanvas3D) {
@@ -148,13 +150,19 @@ bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
     QThread::msleep(50);
   }
 
-  // Get settings
-  mMapSettings3D = mCanvas3D->mapSettings();
+  // Get settings via dynamic call (Qgs3DMapCanvas::mapSettings() may not be
+  // exported in 3.28.3 - access via Qt's meta-object system or property)
+  mMapSettings3D = nullptr;
+  // Try to get mapSettings via dynamic invocation
+  QMetaObject::invokeMethod(mCanvas3D, "mapSettings", Qt::DirectConnection,
+                            Q_RETURN_ARG(Qgs3DMapSettings *, mMapSettings3D));
 
   if (!mMapSettings3D) {
-    qDebug() << "[FTP] mapSettings() is nullptr, attempting to create...";
+    qDebug() << "[FTP] mapSettings() is nullptr, creating new...";
     mMapSettings3D = new Qgs3DMapSettings();
-    mCanvas3D->setMapSettings(mMapSettings3D);
+    // setMapSettings via dynamic call
+    QMetaObject::invokeMethod(mCanvas3D, "setMapSettings", Qt::DirectConnection,
+                              Q_ARG(Qgs3DMapSettings *, mMapSettings3D));
   }
 
   if (!mMapSettings3D) {
@@ -195,16 +203,7 @@ bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
 
   mMapSettings3D->setOrigin(QgsVector3D(origin.x(), origin.y(), 0));
 
-  // Set extent
-  QgsRectangle extent = params.demLayer->extent();
-  if (projectCRS != params.demLayer->crs()) {
-    QgsCoordinateTransform ct(projectCRS, params.demLayer->crs(),
-                              QgsProject::instance());
-    extent = ct.transformBoundingBox(extent);
-  }
-  mMapSettings3D->setExtent(extent);
-
-  // Layers
+  // Layers (setExtent removed - not in QGIS 3.28.3 Qgs3DMapSettings API)
   QList<QgsMapLayer *> layers =
       QgsProject::instance()->layerTreeRoot()->layerOrder();
   if (params.overlayLayer && !layers.contains(params.overlayLayer)) {
@@ -232,25 +231,22 @@ bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
   return true;
 }
 
-Qgs3DMapCanvas *FlyThroughCore::findExisting3DCanvas() {
-  // Search for existing 3D canvas widget
+QWidget *FlyThroughCore::findExisting3DCanvas() {
   QList<QWidget *> candidates = QApplication::topLevelWidgets();
-
   for (QWidget *widget : candidates) {
     if (!widget)
       continue;
-
-    if (widget->metaObject()->className() == QString("Qgs3DMapCanvas")) {
-      return qobject_cast<Qgs3DMapCanvas *>(widget);
+    if (QString(widget->metaObject()->className()) == "Qgs3DMapCanvas") {
+      return widget;
     }
-
-    // Search in dock widgets
-    QList<Qgs3DMapCanvas *> canvases = widget->findChildren<Qgs3DMapCanvas *>();
-    if (!canvases.isEmpty()) {
-      return canvases.first();
+    QList<QWidget *> children = widget->findChildren<QWidget *>();
+    for (QWidget *child : children) {
+      if (child &&
+          QString(child->metaObject()->className()) == "Qgs3DMapCanvas") {
+        return child;
+      }
     }
   }
-
   return nullptr;
 }
 
@@ -282,7 +278,7 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
   while (it.nextFeature(feature)) {
     QgsGeometry geom = feature.geometry();
 
-    if (geom.type() == Qgis::GeometryType::Line) {
+    if (geom.type() == QgsWkbTypes::LineGeometry) {
       if (geom.isMultipart()) {
         QgsMultiPolylineXY multiLine = geom.asMultiPolyline();
         for (const QgsPolylineXY &line : multiLine) {
@@ -293,7 +289,7 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
         for (const QgsPointXY &pt : geom.asPolyline())
           vertices.append(pt);
       }
-    } else if (geom.type() == Qgis::GeometryType::Point) {
+    } else if (geom.type() == QgsWkbTypes::PointGeometry) {
       if (geom.isMultipart()) {
         for (const QgsPointXY &pt : geom.asMultiPoint())
           vertices.append(pt);
@@ -525,7 +521,7 @@ double FlyThroughCore::getElevationAtPoint(
     return 0.0;
 
   QgsRasterIdentifyResult result =
-      provider->identify(samplePoint, Qgis::RasterIdentifyFormat::Value);
+      provider->identify(samplePoint, QgsRaster::IdentifyFormatValue);
   if (result.isValid()) {
     QMap<int, QVariant> results = result.results();
     if (results.contains(1)) {
@@ -652,7 +648,21 @@ void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
   if (!mCanvas3D)
     return;
 
-  QgsCameraController *cameraCtrl = mCanvas3D->cameraController();
+  // Get camera controller via dynamic method call (avoids linking against
+  // Qgs3DMapCanvas::cameraController() which was not exported in QGIS 3.28.3)
+  QObject *cameraCtrl = nullptr;
+  QMetaObject::invokeMethod(mCanvas3D, "cameraController", Qt::DirectConnection,
+                            Q_RETURN_ARG(QObject *, cameraCtrl));
+  if (!cameraCtrl) {
+    // Try via scene
+    QObject *scene = nullptr;
+    QMetaObject::invokeMethod(mCanvas3D, "scene", Qt::DirectConnection,
+                              Q_RETURN_ARG(QObject *, scene));
+    if (scene) {
+      QMetaObject::invokeMethod(scene, "cameraController", Qt::DirectConnection,
+                                Q_RETURN_ARG(QObject *, cameraCtrl));
+    }
+  }
   if (!cameraCtrl)
     return;
 
@@ -741,20 +751,22 @@ void FlyThroughCore::moveCamera(double x, double y, double groundZ, double yaw,
 
   QgsVector3D mapPt(finalX, finalY, finalZ);
 
-  // Set camera using version-compatible API
-  if (cameraCtrl->metaObject()->indexOfMethod(
-          "setLookingAtMapPoint(QgsVector3D,double,double,double)") >= 0) {
+  // Set camera using version-compatible API via dynamic dispatch
+  int methodIdx = cameraCtrl->metaObject()->indexOfMethod(
+      "setLookingAtMapPoint(QgsVector3D,double,double,double)");
+  if (methodIdx >= 0) {
     QMetaObject::invokeMethod(cameraCtrl, "setLookingAtMapPoint",
-                              Q_ARG(QgsVector3D, mapPt), Q_ARG(double, dist),
-                              Q_ARG(double, orbPitch), Q_ARG(double, orbYaw));
+                              Qt::DirectConnection, Q_ARG(QgsVector3D, mapPt),
+                              Q_ARG(double, dist), Q_ARG(double, orbPitch),
+                              Q_ARG(double, orbYaw));
   } else {
-    // Fallback: QgsCameraPose
-    QgsCameraPose pose;
-    pose.setCenterPoint(mapPt);
-    pose.setDistanceFromCenterPoint(dist);
-    pose.setPitchAngle(orbPitch);
-    pose.setHeadingAngle(orbYaw);
-    cameraCtrl->setCameraPose(pose);
+    // Fallback: use setCameraPose via dynamic call
+    // QgsCameraPose is a simple struct - set via property or individual methods
+    // Try "setViewFromTop" as ultimate fallback
+    QMetaObject::invokeMethod(
+        cameraCtrl, "setLookingAtPoint", Qt::DirectConnection,
+        Q_ARG(QgsVector3D, mapPt), Q_ARG(float, (float)dist),
+        Q_ARG(float, (float)orbPitch), Q_ARG(float, (float)orbYaw));
   }
 
   // Debug first few frames

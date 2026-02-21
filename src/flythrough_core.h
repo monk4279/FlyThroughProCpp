@@ -4,6 +4,7 @@
 #include <QMap>
 #include <QObject>
 #include <QTimer>
+#include <QWidget>
 #include <qgis.h>
 #include <qgscoordinatereferencesystem.h>
 #include <qgsgeometry.h>
@@ -14,13 +15,13 @@
 #include <qgsvector3d.h>
 #include <vector>
 
-// Forward declarations
+// Forward declarations - Do NOT include qgs3dmapcanvas.h or
+// qgscameracontroller.h to avoid linking against symbols not present in
+// QGIS 3.28.3
 class QgsVectorLayer;
 class QgsRasterLayer;
 class Qgs3DMapSettings;
-class Qgs3DMapCanvas;
 class QgisInterface;
-class QgsCameraController;
 
 struct Keyframe {
   double time;     // Seconds from start
@@ -66,7 +67,9 @@ public:
 
 private:
   QgisInterface *mIface;
-  Qgs3DMapCanvas *mCanvas3D = nullptr;
+  // Use QWidget* instead of Qgs3DMapCanvas* to avoid linking against
+  // Qgs3DMapCanvas methods not exported in QGIS 3.28.3
+  QWidget *mCanvas3D = nullptr;
   Qgs3DMapSettings *mMapSettings3D = nullptr;
   QgsRasterLayer *mDemLayer = nullptr;
   QgsCoordinateReferenceSystem mProjectCRS;
@@ -89,7 +92,7 @@ private:
   // Methods
   bool setup3DCanvas(const FlythroughParams &params,
                      const QgsPointXY &startPoint);
-  Qgs3DMapCanvas *findExisting3DCanvas();
+  QWidget *findExisting3DCanvas();
   void close3DCanvas();
 
   QList<QgsPointXY> extractPathVertices(QgsVectorLayer *layer);
