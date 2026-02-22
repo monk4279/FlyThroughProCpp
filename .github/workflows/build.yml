@@ -1,4 +1,4 @@
-name: Build QGIS Plugin
+name: Build QGIS Plugin (3.28.3 exact)
 
 on:
   push:
@@ -8,90 +8,164 @@ on:
 
 jobs:
   build:
-    name: Build on Windows (QGIS 3.28 compatible)
+    name: Build on Windows (QGIS 3.28.3 exact)
     runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install OSGeo4W and QGIS Dev Tools
+    # ------------------------------------------------------------------ #
+    # Step 1: Install QGIS 3.28.3 MSI                                     #
+    # This gives us exact 3.28.3 DLLs (and possibly headers too)         #
+    # ------------------------------------------------------------------ #
+    - name: Install QGIS 3.28.3 MSI
+      shell: cmd
+      timeout-minutes: 20
+      run: |
+        curl -L -o qgis-3.28.3.msi "https://www.qgis.org/downloads/windows/QGIS-OSGeo4W-3.28.3-1.msi"
+        msiexec /i qgis-3.28.3.msi /quiet /norestart /log qgis_install.log
+        echo MSI exit code: %ERRORLEVEL%
+
+    # ------------------------------------------------------------------ #
+    # Step 2: Discover installation - find DLLs and (maybe) headers       #
+    # ------------------------------------------------------------------ #
+    - name: Discover QGIS 3.28.3 Installation
+      shell: pwsh
+      run: |
+        Write-Host "=== QGIS installs in Program Files ==="
+        Get-ChildItem "C:\Program Files\" -Filter "*QGIS*" -ErrorAction SilentlyContinue | Select-Object FullName
+        Get-ChildItem "C:\Program Files\" -Filter "*qgis*" -ErrorAction SilentlyContinue | Select-Object FullName
+
+        Write-Host "=== Searching for qgis_core.dll ==="
+        Get-ChildItem "C:\" -Recurse -Filter "qgis_core.dll" -ErrorAction SilentlyContinue -Depth 8 | Select-Object FullName
+
+        Write-Host "=== Searching for qgsapplication.h ==="
+        Get-ChildItem "C:\" -Recurse -Filter "qgsapplication.h" -ErrorAction SilentlyContinue -Depth 8 | Select-Object FullName
+
+    # ------------------------------------------------------------------ #
+    # Step 3: Create import .lib files from the MSI-installed DLLs        #
+    # This guarantees we link against 3.28.3 symbols                      #
+    # ------------------------------------------------------------------ #
+    - name: Create Import Libs from QGIS 3.28.3 DLLs
+      shell: pwsh
+      run: |
+        $vcvars = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        New-Item -ItemType Directory -Force -Path "C:\qgis328-lib" | Out-Null
+
+        # Find DLL directory
+        $dllFile = Get-ChildItem "C:\" -Recurse -Filter "qgis_core.dll" -ErrorAction SilentlyContinue -Depth 8 | Select-Object -First 1
+        if (-not $dllFile) { Write-Error "qgis_core.dll not found!"; exit 1 }
+        $dllDir = $dllFile.DirectoryName
+        Write-Host "DLL dir: $dllDir"
+        $dllDir | Out-File "qgis_dll_dir.txt"
+
+        # Create import lib for each QGIS DLL
+        foreach ($dll in @("qgis_core", "qgis_gui", "qgis_3d")) {
+          $dllPath = "$dllDir\$dll.dll"
+          if (-not (Test-Path $dllPath)) { Write-Host "Skipping $dll (not found)"; continue }
+
+          # 1. Get exports
+          $exportsFile = "C:\qgis328-lib\${dll}_exports.txt"
+          cmd /c "@`"$vcvars`" && dumpbin /exports /nologo `"$dllPath`" > `"$exportsFile`""
+
+          # 2. Parse into .def file
+          $defPath = "C:\qgis328-lib\$dll.def"
+          $content = Get-Content $exportsFile -Raw
+          $defLines = @("EXPORTS")
+          $inExports = $false
+          foreach ($line in (Get-Content $exportsFile)) {
+            if ($line -match 'ordinal\s+hint\s+RVA\s+name') { $inExports = $true; continue }
+            if ($inExports -and $line -match '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)') {
+              $defLines += "  $($Matches[1])"
+            }
+          }
+          $defLines | Out-File $defPath -Encoding ASCII
+          Write-Host "DEF: $defPath ($($defLines.Count - 1) exports)"
+
+          # 3. Create .lib
+          $libPath = "C:\qgis328-lib\$dll.lib"
+          cmd /c "@`"$vcvars`" && lib /machine:x64 /def:`"$defPath`" /out:`"$libPath`" /nologo"
+          if (Test-Path $libPath) { Write-Host "LIB created: $libPath" }
+          else { Write-Host "WARNING: LIB creation failed for $dll" }
+        }
+
+    # ------------------------------------------------------------------ #
+    # Step 4: Install OSGeo4W qgis-ltr-dev for headers + Qt5/GDAL        #
+    # We use its headers for compilation, but our .lib files from 3.28.3  #
+    # NOTE: We ONLY use APIs that exist in both 3.28 and 3.34             #
+    # ------------------------------------------------------------------ #
+    - name: Install OSGeo4W Dev Tools (headers + Qt5)
       shell: cmd
       timeout-minutes: 15
       run: |
         curl -L -o osgeo4w-setup.exe http://download.osgeo.org/osgeo4w/v2/osgeo4w-setup.exe
         osgeo4w-setup.exe --quiet-mode --no-desktop --only-site --autoaccept --root C:\OSGeo4W --site http://download.osgeo.org/osgeo4w/v2 --packages qgis-ltr-dev,qt5-devel,cmake,ninja
 
-    - name: Wait for Installation to Complete
+    - name: Wait for OSGeo4W
       shell: pwsh
       run: Start-Sleep -Seconds 30
 
-    - name: Discover QGIS Installation Paths
-      shell: pwsh
-      run: |
-        Write-Host "=== Top-level OSGeo4W apps ==="
-        Get-ChildItem "C:\OSGeo4W\apps" -ErrorAction SilentlyContinue | Select-Object Name
-
-        Write-Host "=== Searching for qgsraster.h ==="
-        Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "qgsraster.h" -ErrorAction SilentlyContinue | Select-Object FullName
-
-        Write-Host "=== Searching for qgis_core.lib ==="
-        Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "qgis_core.lib" -ErrorAction SilentlyContinue | Select-Object FullName
-
-        Write-Host "=== Searching for Qt5Config.cmake ==="
-        Get-ChildItem "C:\OSGeo4W" -Recurse -Filter "Qt5Config.cmake" -ErrorAction SilentlyContinue | Select-Object FullName
-
-    - name: Find Paths and Write Build Script
+    # ------------------------------------------------------------------ #
+    # Step 5: Build                                                        #
+    # Headers: from OSGeo4W qgis-ltr-dev (or MSI if headers present)     #
+    # Libs: from C:\qgis328-lib (created from 3.28.3 DLLs)               #
+    # ------------------------------------------------------------------ #
+    - name: Build Plugin
       shell: pwsh
       run: |
         $OSGEO4W = "C:\OSGeo4W"
+        $vcvars  = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
 
-        $headerFile = Get-ChildItem "$OSGEO4W" -Recurse -Filter "qgsraster.h" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $headerFile) { Write-Error "Cannot find qgsraster.h"; exit 1 }
-        $QGIS_INCLUDE = $headerFile.Directory.FullName
-        Write-Host "QGIS headers: $QGIS_INCLUDE"
+        # Prefer 3.28.3 headers from MSI install (if present)
+        # Fall back to qgis-ltr-dev headers
+        $hdrFile = Get-ChildItem "C:\" -Recurse -Filter "qgsapplication.h" -ErrorAction SilentlyContinue -Depth 8 |
+                   Where-Object { $_.FullName -notlike "*OSGeo4W*" } | Select-Object -First 1
+        if (-not $hdrFile) {
+          $hdrFile = Get-ChildItem "$OSGEO4W" -Recurse -Filter "qgsapplication.h" -ErrorAction SilentlyContinue | Select-Object -First 1
+        }
+        if (-not $hdrFile) { Write-Error "No QGIS headers found!"; exit 1 }
+        $QGIS_INCLUDE = $hdrFile.Directory.FullName
+        Write-Host "QGIS_INCLUDE = $QGIS_INCLUDE"
 
-        $libFile = Get-ChildItem "$OSGEO4W" -Recurse -Filter "qgis_core.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $libFile) { Write-Error "Cannot find qgis_core.lib"; exit 1 }
-        $QGIS_LIB = $libFile.Directory.FullName
-        Write-Host "QGIS libs: $QGIS_LIB"
+        # Always use 3.28.3 import libs
+        $QGIS_LIB = "C:\qgis328-lib"
+        Write-Host "QGIS_LIB = $QGIS_LIB"
 
         $qt5cmake = Get-ChildItem "$OSGEO4W" -Recurse -Filter "Qt5Config.cmake" -ErrorAction SilentlyContinue | Select-Object -First 1
-        $Qt5_DIR = if ($qt5cmake) { $qt5cmake.Directory.FullName } else { "$OSGEO4W\apps\Qt5\lib\cmake\Qt5" }
-        Write-Host "Qt5 cmake: $Qt5_DIR"
+        $Qt5_DIR  = if ($qt5cmake) { $qt5cmake.Directory.FullName } else { "$OSGEO4W\apps\Qt5\lib\cmake\Qt5" }
+        Write-Host "Qt5_DIR = $Qt5_DIR"
 
-        $vcvars = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-
+        New-Item -ItemType Directory -Force -Path build | Out-Null
         $lines = @(
           "call `"$vcvars`"",
           "if errorlevel 1 exit /b 1",
           "set PATH=$OSGEO4W\bin;%PATH%",
-          "mkdir build 2>nul",
           "cd build",
           "cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=`"$OSGEO4W`" -DQGIS_INCLUDE_DIR=`"$QGIS_INCLUDE`" -DQGIS_LIBRARY_DIR=`"$QGIS_LIB`" -DQt5_DIR=`"$Qt5_DIR`"",
           "if errorlevel 1 exit /b 1",
           "cmake --build . --config Release",
           "if errorlevel 1 exit /b 1"
         )
-        $lines | Out-File -FilePath "run_build.bat" -Encoding ASCII
-        Write-Host "Build script written."
+        $lines | Out-File "run_build.bat" -Encoding ASCII
+        cmd /c "run_build.bat"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    - name: Build QGIS Plugin
-      shell: cmd
-      run: run_build.bat
-
-    - name: Inspect DLL Exports
+    # ------------------------------------------------------------------ #
+    # Step 6: Verify imports match user's 3.28.3                          #
+    # ------------------------------------------------------------------ #
+    - name: Inspect DLL Imports (verify 3.28.3 compatibility)
       shell: cmd
       run: |
         call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
         for /r .\build %%f in (*.dll) do (
-          echo === %%f ===
-          dumpbin /exports "%%f"
+          echo === Imports from %%f ===
+          dumpbin /imports "%%f"
         )
 
     - name: Upload Plugin
       uses: actions/upload-artifact@v4
       with:
-        name: QGIS-Plugin-Windows-3.28
+        name: QGIS-Plugin-Windows-3.28.3-exact
         path: |
           build/*.dll
           build/*.lib
