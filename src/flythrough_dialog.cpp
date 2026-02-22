@@ -37,16 +37,17 @@ void FlyThroughDialog::setupUi() {
   QFormLayout *basicLayout = new QFormLayout();
 
   mDemLayerCombo = new QgsMapLayerComboBox(this);
-  mDemLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer);
+  // Note: setFilters() removed - QgsMapLayerProxyModel::Filter enum was removed
+  // in QGIS 3.34. All layer types are shown; user should select a raster DEM
+  // layer.
   basicLayout->addRow("DEM Layer:", mDemLayerCombo);
 
   mPathLayerCombo = new QgsMapLayerComboBox(this);
-  mPathLayerCombo->setFilters(QgsMapLayerProxyModel::VectorLayer);
+  // Note: setFilters() removed for cross-version compatibility.
+  // User should select a vector layer for the path.
   basicLayout->addRow("Path Layer:", mPathLayerCombo);
 
   mOverlayLayerCombo = new QgsMapLayerComboBox(this);
-  mOverlayLayerCombo->setFilters(QgsMapLayerProxyModel::RasterLayer |
-                                 QgsMapLayerProxyModel::VectorLayer);
   mOverlayLayerCombo->setAllowEmptyLayer(true);
   basicLayout->addRow("Overlay (optional):", mOverlayLayerCombo);
 

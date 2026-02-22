@@ -24,7 +24,8 @@
 #include <qgsmessagebar.h>
 #include <qgspointxy.h>
 #include <qgsproject.h>
-#include <qgsrasteridentifyresult.h>
+// qgsrasteridentifyresult.h removed - using provider->sample() instead of
+// identify()
 #include <qgsrasterlayer.h>
 #include <qgsvectorlayer.h>
 #include <qgswkbtypes.h>
@@ -278,7 +279,12 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
   while (it.nextFeature(feature)) {
     QgsGeometry geom = feature.geometry();
 
-    if (geom.type() == QgsWkbTypes::LineGeometry) {
+    // Use flatType(wkbType()) instead of geom.type() to avoid version-specific
+    // GeometryType enum (QgsWkbTypes::LineGeometry removed in QGIS 3.34+)
+    QgsWkbTypes::Type flat = QgsWkbTypes::flatType(geom.wkbType());
+
+    if (flat == QgsWkbTypes::LineString ||
+        flat == QgsWkbTypes::MultiLineString) {
       if (geom.isMultipart()) {
         QgsMultiPolylineXY multiLine = geom.asMultiPolyline();
         for (const QgsPolylineXY &line : multiLine) {
@@ -289,7 +295,7 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
         for (const QgsPointXY &pt : geom.asPolyline())
           vertices.append(pt);
       }
-    } else if (geom.type() == QgsWkbTypes::PointGeometry) {
+    } else if (flat == QgsWkbTypes::Point || flat == QgsWkbTypes::MultiPoint) {
       if (geom.isMultipart()) {
         for (const QgsPointXY &pt : geom.asMultiPoint())
           vertices.append(pt);
@@ -520,17 +526,12 @@ double FlyThroughCore::getElevationAtPoint(
   if (!provider)
     return 0.0;
 
-  QgsRasterIdentifyResult result =
-      provider->identify(samplePoint, QgsRaster::IdentifyFormatValue);
-  if (result.isValid()) {
-    QMap<int, QVariant> results = result.results();
-    if (results.contains(1)) {
-      bool ok;
-      double val = results[1].toDouble(&ok);
-      if (ok)
-        return val;
-    }
-  }
+  // Use sample() instead of identify() - stable API across all QGIS versions
+  // (identify() parameter type changed between 3.28 and 3.34)
+  bool sampleOk = false;
+  double val = provider->sample(samplePoint, 1, &sampleOk);
+  if (sampleOk && !std::isnan(val))
+    return val;
 
   return 0.0;
 }
