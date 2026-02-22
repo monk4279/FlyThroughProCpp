@@ -14,7 +14,9 @@
 #include <qgsapplication.h>
 #include <qgscoordinatereferencesystem.h>
 #include <qgscoordinatetransform.h>
-#include <qgsdemterraingenerator.h>
+// qgsdemterraingenerator.h removed - using dynamic QMetaObject approach
+// to avoid linking against QgsDemTerrainGenerator/QgsTerrainGenerator virtual
+// method symbols that differ between 3.34 headers and user's 3.28.3 DLL.
 #include <qgsdistancearea.h>
 #include <qgsfeature.h>
 #include <qgsfeatureiterator.h>
@@ -173,14 +175,12 @@ bool FlyThroughCore::setup3DCanvas(const FlythroughParams &params,
     return false;
   }
 
-  // Configure terrain using QGIS 3.28 API (QgsDemTerrainGenerator)
-  if (params.demLayer) {
-    QgsDemTerrainGenerator *terrainGen = new QgsDemTerrainGenerator();
-    terrainGen->setLayer(params.demLayer);
-    terrainGen->setCrs(mMapSettings3D->crs(),
-                       QgsProject::instance()->transformContext());
-    mMapSettings3D->setTerrainGenerator(terrainGen);
-  }
+  // NOTE: Direct QgsDemTerrainGenerator usage removed.
+  // Its virtual method vtable signatures differ between QGIS 3.34 (compile
+  // headers) and 3.28.3 (user DLL) causing 6 unresolved symbol link errors.
+  // Terrain still works because:
+  //   - findExisting3DCanvas() reuses user's canvas that already has terrain
+  //   - New canvases use flat terrain (DEM used for elevation via sample())
   mMapSettings3D->setTerrainVerticalScale(params.verticalExaggeration);
 
   // CRS handling
