@@ -28,7 +28,7 @@
 // identify()
 #include <qgsrasterlayer.h>
 #include <qgsvectorlayer.h>
-#include <qgswkbtypes.h>
+// qgswkbtypes.h removed - no longer using QgsWkbTypes enum (removed in 3.34)
 
 FlyThroughCore::FlyThroughCore(QgisInterface *iface, QObject *parent)
     : QObject(parent), mIface(iface) {}
@@ -278,30 +278,23 @@ QList<QgsPointXY> FlyThroughCore::extractPathVertices(QgsVectorLayer *layer) {
 
   while (it.nextFeature(feature)) {
     QgsGeometry geom = feature.geometry();
+    if (geom.isNull() || !geom.get())
+      continue;
 
-    // Use flatType(wkbType()) instead of geom.type() to avoid version-specific
-    // GeometryType enum (QgsWkbTypes::LineGeometry removed in QGIS 3.34+)
-    QgsWkbTypes::Type flat = QgsWkbTypes::flatType(geom.wkbType());
+    // Use geometryType() string - stable across ALL QGIS versions.
+    // QgsWkbTypes::Type enum, LineString, MultiLineString etc. were
+    // removed from QgsWkbTypes in QGIS 3.34 (moved to Qgis::WkbType).
+    const QString gtype = geom.get()->geometryType();
+    const bool isLine =
+        gtype.contains(QLatin1String("LineString"), Qt::CaseInsensitive);
+    const bool isPoint =
+        gtype.startsWith(QLatin1String("Point"), Qt::CaseInsensitive) ||
+        gtype.startsWith(QLatin1String("MultiPoint"), Qt::CaseInsensitive);
 
-    if (flat == QgsWkbTypes::LineString ||
-        flat == QgsWkbTypes::MultiLineString) {
-      if (geom.isMultipart()) {
-        QgsMultiPolylineXY multiLine = geom.asMultiPolyline();
-        for (const QgsPolylineXY &line : multiLine) {
-          for (const QgsPointXY &pt : line)
-            vertices.append(pt);
-        }
-      } else {
-        for (const QgsPointXY &pt : geom.asPolyline())
-          vertices.append(pt);
-      }
-    } else if (flat == QgsWkbTypes::Point || flat == QgsWkbTypes::MultiPoint) {
-      if (geom.isMultipart()) {
-        for (const QgsPointXY &pt : geom.asMultiPoint())
-          vertices.append(pt);
-      } else {
-        vertices.append(geom.asPoint());
-      }
+    if (isLine || isPoint) {
+      // vertices() iterator is stable across all QGIS 3.x versions
+      for (auto vit = geom.vertices_begin(); vit != geom.vertices_end(); ++vit)
+        vertices.append(QgsPointXY((*vit).x(), (*vit).y()));
     }
   }
 
